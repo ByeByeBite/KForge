@@ -145,27 +145,71 @@ namespace KF
             // 读取并解析 KSON
             std::string raw = ReadFileRaw(filepath);
             KSON::kson doc = KSON::read(KSON::Preprocess(raw));
-            KSON::kson mazeArr = doc["maze"][maze_key];
-            size_t rows = mazeArr.Size();
+            KSON::kson mazeNode = doc["maze"][maze_key];
 
             std::vector<std::vector<MazeCell>> grid;
-            grid.reserve(rows);
 
-            for (size_t r = 0; r < rows; r++)
+            if (mazeNode.Resolve() && mazeNode.Resolve()->IsObject())
             {
-                std::string rowStr = mazeArr[r][size_t(0)].Str();
-                std::vector<MazeCell> row;
-                row.reserve(rowStr.size());
+                // 新格式：RLE 压缩单行
+                int w = (int)mazeNode["w"].Int();
+                std::string rle = mazeNode["data"].Str();
 
-                for (char c : rowStr)
+                // RLE 解码
+                std::string decoded;
+                decoded.reserve(rle.size() * 2);
+                size_t i = 0;
+                while (i < rle.size())
                 {
-                    if      (c == MAZE_WALL)  row.push_back(MazeCell::WALL);
-                    else if (c == MAZE_PATH)  row.push_back(MazeCell::PASSABLE);
-                    else if (c == MAZE_START) row.push_back(MazeCell::START);
-                    else if (c == MAZE_END)   row.push_back(MazeCell::END);
-                    else                 row.push_back(MazeCell::PASSABLE); // 未知字符视为通路
+                    char c = rle[i++];
+                    int count = 0;
+                    while (i < rle.size() && isdigit((unsigned char)rle[i]))
+                    {
+                        count = count * 10 + (rle[i] - '0');
+                        i++;
+                    }
+                    decoded.append(count, c);
                 }
-                grid.push_back(std::move(row));
+
+                // 按宽度分行
+                int rows = (int)decoded.size() / w;
+                grid.reserve(rows);
+                for (int r = 0; r < rows; r++)
+                {
+                    std::vector<MazeCell> row;
+                    row.reserve(w);
+                    for (int c = 0; c < w; c++)
+                    {
+                        char ch = decoded[r * w + c];
+                        if      (ch == MAZE_WALL)  row.push_back(MazeCell::WALL);
+                        else if (ch == MAZE_PATH)  row.push_back(MazeCell::PASSABLE);
+                        else if (ch == MAZE_START) row.push_back(MazeCell::START);
+                        else if (ch == MAZE_END)   row.push_back(MazeCell::END);
+                        else                       row.push_back(MazeCell::PASSABLE);
+                    }
+                    grid.push_back(std::move(row));
+                }
+            }
+            else
+            {
+                // 旧格式：数组
+                size_t rows = mazeNode.Size();
+                grid.reserve(rows);
+                for (size_t r = 0; r < rows; r++)
+                {
+                    std::string rowStr = mazeNode[r][size_t(0)].Str();
+                    std::vector<MazeCell> row;
+                    row.reserve(rowStr.size());
+                    for (char c : rowStr)
+                    {
+                        if      (c == MAZE_WALL)  row.push_back(MazeCell::WALL);
+                        else if (c == MAZE_PATH)  row.push_back(MazeCell::PASSABLE);
+                        else if (c == MAZE_START) row.push_back(MazeCell::START);
+                        else if (c == MAZE_END)   row.push_back(MazeCell::END);
+                        else                 row.push_back(MazeCell::PASSABLE);
+                    }
+                    grid.push_back(std::move(row));
+                }
             }
             return grid;
         }

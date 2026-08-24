@@ -24,6 +24,9 @@ namespace KF
 {
     namespace KCLI
     {
+        /// @brief 全局配置（global.kson 的 data 节点），见 KF.hpp 声明
+        kson GLOBAL;
+
         /////////////////////////////////////////////////////////
         // 内部工具函数
         /////////////////////////////////////////////////////////
@@ -62,6 +65,91 @@ namespace KF
             std::wstring wtitle(wlen, L'\0');
             MultiByteToWideChar(CP_UTF8, 0, title.c_str(), -1, wtitle.data(), wlen);
             SetConsoleTitleW(wtitle.c_str());
+        }
+
+        // 原始字体快照，供 KEnd 恢复
+        static CONSOLE_FONT_INFOEX g_savedFont{};
+        static bool g_fontSaved = false;
+        static void SaveOriginalFont()
+        {
+            if (g_fontSaved) return;
+            CONSOLE_FONT_INFOEX cfi{};
+            cfi.cbSize = sizeof(cfi);
+            HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
+            if (GetCurrentConsoleFontEx(h, FALSE, &cfi)) { g_savedFont = cfi; g_fontSaved = true; }
+        }
+        static void RestoreConsoleFont()
+        {
+            if (!g_fontSaved) return;
+            SetCurrentConsoleFontEx(GetStdHandle(STD_OUTPUT_HANDLE), FALSE, &g_savedFont);
+            Sleep(100);
+        }
+
+        /// @brief 经典 cmd 下分级适配：先调窗口到内容大小；放不下则缩字号（到 6）；仍放不下则全屏，全程静默
+        static void FitConsoleClassic(HANDLE h, int rows, int cols)
+        {
+            CONSOLE_FONT_INFOEX cfi{};
+            cfi.cbSize = sizeof(cfi);
+            SaveOriginalFont();
+            short fontY = GetCurrentConsoleFontEx(h, FALSE, &cfi) ? cfi.dwFontSize.Y : 6;
+
+            // 阶段1+2：先按内容设窗口，放不下则逐级缩字号（最小到 6）
+            while (true)
+            {
+                COORD max = GetLargestConsoleWindowSize(h);
+                int wc = cols + 1 < (int)max.X ? cols + 1 : (int)max.X;
+                int wr = rows + 2 < (int)max.Y ? rows + 2 : (int)max.Y;
+
+                // 缓冲区比新窗口大时 SetConsoleScreenBufferSize 会失败，先把窗口缩到 1x1
+                SMALL_RECT one = {0, 0, 0, 0};
+                SetConsoleWindowInfo(h, TRUE, &one);
+                SetConsoleScreenBufferSize(h, {(SHORT)wc, (SHORT)wr});
+                SMALL_RECT win = {0, 0, (SHORT)(wc - 1), (SHORT)(wr - 1)};
+                SetConsoleWindowInfo(h, TRUE, &win);
+                Sleep(60);
+
+                if (wr >= rows + 2 && wc >= cols + 1) return; // 内容放得下，窗口就是内容大小
+                if (fontY <= 6) break;                         // 字号已到下限 6 仍放不下 → 走全屏
+
+                fontY = fontY - 2 < 6 ? 6 : (short)(fontY - 2);
+                cfi.dwFontSize.X = 0;
+                cfi.dwFontSize.Y = fontY;
+                SetCurrentConsoleFontEx(h, FALSE, &cfi);
+                Sleep(150); // 等控制台按新字体重算最大窗口
+            }
+
+            // 阶段3：字号已到 6 仍放不下 → 当前字号下最大化（全屏）
+            COORD max = GetLargestConsoleWindowSize(h);
+            int wc = (int)max.X, wr = (int)max.Y;
+            SMALL_RECT one = {0, 0, 0, 0};
+            SetConsoleWindowInfo(h, TRUE, &one);
+            SetConsoleScreenBufferSize(h, {(SHORT)wc, (SHORT)wr});
+            SMALL_RECT win = {0, 0, (SHORT)(wc - 1), (SHORT)(wr - 1)};
+            SetConsoleWindowInfo(h, TRUE, &win);
+            Sleep(60);
+        }
+
+        /// @brief 经典 cmd 下自动分级适配；keepIfFits=true 时若当前窗口已能放下内容则保持原窗口大小（用于迷宫过小）
+        /// @param rows 需要显示的行数
+        /// @param cols 需要显示的列数
+        /// @param keepIfFits 内容过小时是否保持原窗口（true=迷宫场景）
+        /// @return 恒为 true（cmd 下总是尽力适配）
+        bool CheckConsoleFit(int rows, int cols, bool keepIfFits)
+        {
+            HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
+            if (keepIfFits)
+            {
+                CONSOLE_SCREEN_BUFFER_INFO csbi;
+                if (GetConsoleScreenBufferInfo(h, &csbi))
+                {
+                    int winCols = csbi.srWindow.Right - csbi.srWindow.Left + 1;
+                    int winRows = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
+                    if (cols + 1 <= winCols && rows + 2 <= winRows)
+                        return true; // 迷宫过小，当前窗口已能放下 → 保持原窗口大小
+                }
+            }
+            FitConsoleClassic(h, rows, cols);
+            return true;
         }
 
         /// @brief 计算含 ANSI 转义序列的字符串的可见显示宽度
@@ -194,6 +282,9 @@ namespace KF
                         const std::string& description, const std::string& author,
                         const std::string& date)
         {
+            // 加载全局配置 global.kson 到 GLOBAL
+            GLOBAL = ReadKsonFile("config/global.kson")["global"]["data"];
+
             // 启用 VT100 颜色 + UTF-8 输出
             EnableVT100();
             SetConsoleOutputCP(CP_UTF8);
@@ -255,7 +346,7 @@ namespace KF
                 std::cout << Color::SkyBlue << "  |\n";
             }
             std::cout << "+" << bar << "+" << Color::Reset << "\n";
-            std::cout << std::endl;
+            std::cout << '\n';
         }
 
         void KBegin(const KSON::kson file)
@@ -352,6 +443,7 @@ namespace KF
 
         void KEnd()
         {
+            RestoreConsoleFont(); // 恢复正常字号
             KPause();
             exit(0);
         }
@@ -362,27 +454,78 @@ namespace KF
         constexpr char End = 'E';
         constexpr char Visited = 'V';
         constexpr char Path = 'L';
-        void PrintMaze(const std::vector<std::vector<MazeCell>>& maze)
+
+        /// @brief ANSI 清屏（恢复光标+归位+清除屏幕），替代 system("cls") 避免子进程切换闪屏
+        void ClearScreen()
+        {
+            std::cout << "\033[?25h\033[H\033[J" << std::flush;
+        }
+
+        /// @brief 显示柱状图（基于序号，不显示数字）
+        /// @param ranks 每个位置的序号（1=最小，n=最大）
+        /// @param n 元素个数
+        /// @param barMax 柱状条最大长度
+        /// @param highlight1 正在比较的元素1（绿色）
+        /// @param highlight2 正在比较的元素2（黄色）
+        /// @param sortedUntil 已排序的边界（右侧灰色）
+        /// @note  整帧拼成一个字符串一次性输出；\033[H 原地覆盖不清屏；绘制期间隐藏光标；
+        ///        连续同色行只发一次颜色码，减小帧体积避免分块重绘闪屏
+        void Arr::Print(const std::vector<size_t>& ranks, size_t n, int barMax, int highlight1, int highlight2, int sortedUntil)
         {
             std::string out;
-            out.reserve(maze.size() * (maze[0].size() * 12 + 1));
+            out.reserve(n * (barMax + 32));
+            out += "\033[H";
+            const char* last = nullptr;
+            for (size_t i = 0; i < n; i++)
+            {
+                const char* color;
+                if (i == (size_t)highlight1)      color = "\033[1;32m"; // 绿色
+                else if (i == (size_t)highlight2) color = "\033[1;33m"; // 黄色
+                else if (sortedUntil >= 0 && (int)i > sortedUntil) color = "\033[90m"; // 灰色
+                else                              color = "\033[0m";
+                if (color != last) { out += color; last = color; }
+
+                int barLen = (int)(ranks[i] * barMax / n);
+                if (barLen < 0) barLen = 0;
+                if (barLen > barMax) barLen = barMax;
+
+                out.append((size_t)barLen, '#');
+                out += "\033[K\n"; // 清行尾，防止上帧长柱残留
+            }
+            out += "\033[0m";
+            std::cout << out << std::flush;
+        }
+
+        /// @brief 打印迷宫（整帧一次性输出，\033[H 原地覆盖不清屏，绘制期间隐藏光标）
+        /// @note  连续同色格子只发一次颜色码（RLE），帧体积缩小约 10 倍，避免 conpty 分块重绘闪屏
+        void Maze::Print(const std::vector<std::vector<MazeCell>>& maze)
+        {
+            static const std::string cellColor[] = {
+                Color::Gray,                              // WALL
+                Color::LightGray,                         // PASSABLE
+                Color::Yellow,                            // VISITED
+                std::string(Color::Bold) + Color::Green,  // START
+                std::string(Color::Bold) + Color::Blue,   // END
+                std::string(Color::Bold) + Color::Blue,   // PATH
+            };
+            static const char cellChar[] = { Wall, Passable, Visited, Start, End, Path };
+
+            std::string out;
+            out.reserve(maze.size() * (maze[0].size() + 8));
+            out += "\033[H";
+            int last = -1;
             for (const auto& row : maze)
             {
                 for (auto cell : row)
                 {
-                    switch (cell)
-                    {
-                        case MazeCell::WALL:     out += Color::Gray;      out += Wall;    out += Color::Reset; break;
-                        case MazeCell::PASSABLE: out += Color::LightGray; out += Passable; out += Color::Reset; break;
-                        case MazeCell::START:    out += Color::Bold; out += Color::Green;  out += Start; out += Color::Reset; break;
-                        case MazeCell::END:      out += Color::Bold; out += Color::Blue;   out += End;   out += Color::Reset; break;
-                        case MazeCell::VISITED:  out += Color::Yellow; out += Visited; out += Color::Reset; break;
-                        case MazeCell::PATH:     out += Color::Bold; out += Color::Blue; out += Path; out += Color::Reset; break;
-                    }
+                    int id = (int)cell;
+                    if (id != last) { out += cellColor[id]; last = id; }
+                    out += cellChar[id];
                 }
-                out += '\n';
+                out += "\033[K\n";
             }
-            std::cout << out;
+            out += "\033[0m";
+            std::cout << out << std::flush;
         }
     }
 }

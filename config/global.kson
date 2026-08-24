@@ -1,0 +1,17 @@
+"global":
+{
+    "meta":
+    {
+        "name": "global",
+        "version": "1.0.0",
+        "description": "Global configuration for the project",
+        "author": "ByeByeBite",
+        "date": "2026-08-23"
+    },
+    "data":
+    {
+        "MazePrintSleep":10,  #迷宫打印N次后停下多久(ms)
+        "ArrPrintSleep" :10,   #数组打印N次后停下多久(ms)
+        "BarMax"        :100  #排序条最大值
+    }
+}

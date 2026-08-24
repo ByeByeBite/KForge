@@ -10,7 +10,7 @@ vector<BigNum> arr;
 long long printSleep = 0; // 每次打印后的停顿(ms)，来自 GLOBAL["ArrPrintSleep"]
 size_t printEvery = 1;   // 每打印一次间隔的比较数（用户输入），0=不停顿
 
-long long BarMax = 50;
+const int barMax = 50;
 
 /// @brief 计算每个位置的序号（1=最小，n=最大）
 vector<size_t> ComputeRanks(const vector<BigNum>& a)
@@ -25,34 +25,45 @@ vector<size_t> ComputeRanks(const vector<BigNum>& a)
     return ranks;
 }
 
-void BubbleSort(vector<BigNum>& a, vector<size_t> ranks, size_t rule)
+/// @brief 判断数组是否已按 rule 有序（1=升序，2=降序）
+static bool IsSorted(const vector<BigNum>& a, size_t rule)
 {
-    AddTimer("BUBBLE SORT", TimeUnit::us);
+    for (size_t i = 1; i < n; i++)
+    {
+        if ((rule == 1 && a[i - 1] > a[i]) || (rule == 2 && a[i - 1] < a[i]))
+            return false;
+    }
+    return true;
+}
 
-    if (printSleep > 0) { ClearScreen(); Arr::Print(ranks, n, BarMax); }
+/// @brief 随机打乱数组（猴子排序的核心）
+static void Shuffle(vector<BigNum>& a)
+{
+    static std::mt19937 g{std::random_device{}()};
+    std::shuffle(a.begin(), a.end(), g);
+}
+
+void BogoSort(vector<BigNum>& a, size_t rule)
+{
+    AddTimer("BOGO SORT", TimeUnit::us);
+    if (printSleep > 0) { ClearScreen(); }
 
     size_t cnt = 0;
-    for (size_t i = 0; i < n - 1; i++)
+    vector<size_t> ranks = ComputeRanks(a);
+    while (!IsSorted(a, rule))
     {
-        for (size_t j = 0; j < n - i - 1; j++)
+        Shuffle(a);
+        ranks = ComputeRanks(a); // 洗牌后名次跟随变化
+        ++cnt;
+        if (printSleep > 0 && cnt % printEvery == 0)
         {
-            ++cnt;
-            if (printSleep > 0 && cnt % printEvery == 0)
-            {
-                Arr::Print(ranks, n, BarMax, (int)j, (int)(j + 1), (int)(n - i - 1));
-                Sleep((DWORD)printSleep);
-            }
-
-            if ((rule == 1 && a[j] > a[j + 1]) || (rule == 2 && a[j] < a[j + 1]))
-            {
-                swap(a[j], a[j + 1]);
-                swap(ranks[j], ranks[j + 1]);
-            }
+            Arr::Print(ranks, n, barMax);
+            Sleep((DWORD)printSleep);
         }
     }
 
-    PrintTimer("BUBBLE SORT");
-    if (printSleep > 0) { Arr::Print(ranks, n, BarMax); }
+    PrintTimer("BOGO SORT");
+    if (printSleep > 0) { Arr::Print(ranks, n, barMax); }
     kout << "{green}\nSort complete!{/}" << endl;
 
     bool out = true;
@@ -71,12 +82,10 @@ void BubbleSort(vector<BigNum>& a, vector<size_t> ranks, size_t rule)
 int main()
 {
     kson file = ReadKsonFile("config/algorithm/cfg.kson");
-    kson main = file["Algorithm"]["Sorting"]["BubbleSort"];
+    kson main = file["Algorithm"]["Sorting"]["BogoSort"];
     KBegin(main);
     size_t rule = KOptions(main["sort_method"]);
     bool isgen = false;
-    BarMax = GLOBAL["BarMax"].Int();
-
     kout << "size of array: ";
     kin >> n;
     kout << "Automate generate BIGNUM? {yellow}(Bool):{/}";
@@ -105,11 +114,10 @@ int main()
         }
     }
     printSleep = GLOBAL["ArrPrintSleep"].Int();
-    kout << "Pause every N compares (0=off, recommended 1): ";
+    kout << "Pause every N shuffles (0=off, recommended 1): ";
     kin >> printEvery;
-    if (printSleep > 0) CheckConsoleFit((int)n + 3, BarMax + 3);
-    auto ranks = ComputeRanks(arr);
-    BubbleSort(arr, ComputeRanks(arr), rule);
+    if (printSleep > 0) CheckConsoleFit((int)n + 3, barMax + 3);
+    BogoSort(arr, rule);
     kout << "Time Complexity: " << main["time_complexity"].Str() << "\n\n";
     KEnd();
 }

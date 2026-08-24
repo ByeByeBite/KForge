@@ -39,30 +39,41 @@
 <body>
 <header>
   <h1>KForge 迷宫生成器</h1>
-  <p>随机迷宫 · 递归回溯算法 · 输出 KSON 格式</p>
+  <p>随机迷宫 · 递归回溯 / Prim 算法 · 输出 KSON 格式</p>
 </header>
 <div class="container">
   <div class="panel controls">
-    <label>行数 <input type="number" id="rows" value="15" min="3" max="51"></label>
-    <label>列数 <input type="number" id="cols" value="15" min="3" max="51"></label>
+    <label>行数 <input type="number" id="rows" value="15" min="3"></label>
+    <label>列数 <input type="number" id="cols" value="15" min="3"></label>
     <label>密度 <input type="range" id="density" min="0" max="100" value="40"> <span id="densityVal">40%</span></label>
+    <label>生成算法
+      <select id="algorithm" style="flex:1;padding:4px 8px;background:#0f3460;border:1px solid #1a4a8a;color:#e0e0e0;border-radius:4px;font-size:14px;">
+        <option value="dfs">递归回溯（DFS）</option>
+        <option value="prim">Prim 算法</option>
+      </select>
+    </label>
     <div class="seed-row">
       <input type="number" id="seed" placeholder="随机种子(留空自动)">
       <button onclick="generate()">生成</button>
     </div>
+    <label>迷宫名称 <input type="text" id="mazeName" value="maze_15x15" style="flex:1;padding:4px 8px;background:#0f3460;border:1px solid #1a4a8a;color:#e0e0e0;border-radius:4px;font-size:14px;width:100%;box-sizing:border-box"></label>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <label style="font-size:13px;color:#aaa;display:flex;align-items:center;gap:4px">起点
-        <input type="number" id="startR" value="0" min="0" max="50" style="width:40px;padding:2px 4px;background:#0f3460;border:1px solid #1a4a8a;color:#e0e0e0;border-radius:4px;text-align:center;font-size:13px">行
-        <input type="number" id="startC" value="0" min="0" max="50" style="width:40px;padding:2px 4px;background:#0f3460;border:1px solid #1a4a8a;color:#e0e0e0;border-radius:4px;text-align:center;font-size:13px">列
+        <input type="number" id="startR" value="0" min="0" style="width:40px;padding:2px 4px;background:#0f3460;border:1px solid #1a4a8a;color:#e0e0e0;border-radius:4px;text-align:center;font-size:13px">行
+        <input type="number" id="startC" value="0" min="0" style="width:40px;padding:2px 4px;background:#0f3460;border:1px solid #1a4a8a;color:#e0e0e0;border-radius:4px;text-align:center;font-size:13px">列
       </label>
       <label style="font-size:13px;color:#aaa;display:flex;align-items:center;gap:4px">终点
-        <input type="number" id="endR" value="14" min="0" max="50" style="width:40px;padding:2px 4px;background:#0f3460;border:1px solid #1a4a8a;color:#e0e0e0;border-radius:4px;text-align:center;font-size:13px">行
-        <input type="number" id="endC" value="14" min="0" max="50" style="width:40px;padding:2px 4px;background:#0f3460;border:1px solid #1a4a8a;color:#e0e0e0;border-radius:4px;text-align:center;font-size:13px">列
+        <input type="number" id="endR" value="14" min="0" style="width:40px;padding:2px 4px;background:#0f3460;border:1px solid #1a4a8a;color:#e0e0e0;border-radius:4px;text-align:center;font-size:13px">行
+        <input type="number" id="endC" value="14" min="0" style="width:40px;padding:2px 4px;background:#0f3460;border:1px solid #1a4a8a;color:#e0e0e0;border-radius:4px;text-align:center;font-size:13px">列
       </label>
     </div>
     <div class="checkbox-row">
       <input type="checkbox" id="autoGen" checked onchange="if(this.checked)generate()">
       <label for="autoGen">自动生成</label>
+    </div>
+    <div class="checkbox-row">
+      <input type="checkbox" id="ensurePath" checked onchange="if(document.getElementById('autoGen').checked)generate()">
+      <label for="ensurePath">确保通路</label>
     </div>
     <div style="display:flex;gap:8px">
 	      <button onclick="copyKSON(this)" style="flex:1;padding:8px;background:#0f3460;border:1px solid #1a4a8a;color:#00d4ff;border-radius:6px;cursor:pointer;font-size:14px;font-weight:600;transition:all .2s">复制 KSON</button>
@@ -99,8 +110,8 @@ let lastGrid = null;
 function pick(arr) { return arr[Math.floor(rng() * arr.length)]; }
 
 function generate() {
-  const rows = Math.max(3, Math.min(51, parseInt(document.getElementById('rows').value) || 15));
-  const cols = Math.max(3, Math.min(51, parseInt(document.getElementById('cols').value) || 15));
+  const rows = Math.max(3, parseInt(document.getElementById('rows').value) || 15);
+  const cols = Math.max(3, parseInt(document.getElementById('cols').value) || 15);
   document.getElementById('rows').value = rows;
   document.getElementById('cols').value = cols;
 
@@ -117,7 +128,7 @@ function generate() {
   let intRows = rows + 2, intCols = cols + 2;
   let grid = Array.from({ length: intRows }, () => Array(intCols).fill('W'));
 
-  // 递归回溯生成迷宫通道
+  // 递归回溯生成迷宫通道（DFS）
   function carve(r, c) {
     grid[r][c] = 'P';
     const dirs = [[0,2],[0,-2],[2,0],[-2,0]];
@@ -134,8 +145,39 @@ function generate() {
     }
   }
 
-  // 从(1,1)开始挖
-  carve(1, 1);
+  // Prim 算法生成迷宫
+  function prim() {
+    // 从(1,1)开始
+    grid[1][1] = 'P';
+    const walls = [];
+    if (1 + 2 < intRows - 1) walls.push([1 + 1, 1, 1 + 2, 1]);
+    if (1 + 2 < intCols - 1) walls.push([1, 1 + 1, 1, 1 + 2]);
+
+    while (walls.length > 0) {
+      const idx = Math.floor(rng() * walls.length);
+      const [wr, wc, nr, nc] = walls[idx];
+      walls[idx] = walls[walls.length - 1];
+      walls.pop();
+
+      if (grid[nr][nc] === 'W') {
+        grid[wr][wc] = 'P';
+        grid[nr][nc] = 'P';
+        if (nr - 2 >= 1 && grid[nr - 2][nc] === 'W') walls.push([nr - 1, nc, nr - 2, nc]);
+        if (nr + 2 < intRows - 1 && grid[nr + 2][nc] === 'W') walls.push([nr + 1, nc, nr + 2, nc]);
+        if (nc - 2 >= 1 && grid[nr][nc - 2] === 'W') walls.push([nr, nc - 1, nr, nc - 2]);
+        if (nc + 2 < intCols - 1 && grid[nr][nc + 2] === 'W') walls.push([nr, nc + 1, nr, nc + 2]);
+      }
+    }
+  }
+
+  // 根据选择的算法生成迷宫
+  const algo = document.getElementById('algorithm').value;
+  if (algo === 'prim') {
+    prim();
+  } else {
+    // 从(1,1)开始挖（DFS 递归回溯）
+    carve(1, 1);
+  }
 
   // 根据密度额外挖墙（内部区域）
   for (let r = 1; r < intRows - 1; r++) {
@@ -175,20 +217,125 @@ function generate() {
   inner[startR][startC] = 'S';
   inner[endR][endC] = 'E';
 
+  // 确保通路/断路的 BFS 工具函数
+  function bfsConnected(grid, sr, sc, er, ec, rcnt, ccnt) {
+    // 起终点同格视为已连通
+    if (sr === er && sc === ec) return null;
+    const vis = Array.from({ length: rcnt }, () => Array(ccnt).fill(false));
+    const q = [[sr, sc]];
+    vis[sr][sc] = true;
+    const parent = Array.from({ length: rcnt }, () => Array(ccnt).fill(null));
+    while (q.length) {
+      const [r, c] = q.shift();
+      if (r === er && c === ec) return parent;
+      for (const [dr, dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+        const nr = r + dr, nc = c + dc;
+        if (nr >= 0 && nr < rcnt && nc >= 0 && nc < ccnt && !vis[nr][nc] && grid[nr][nc] !== 'W')
+        { vis[nr][nc] = true; parent[nr][nc] = [r, c]; q.push([nr, nc]); }
+      }
+    }
+    return null;
+  }
+
+  if (document.getElementById('ensurePath').checked)
+  {
+    const parent = bfsConnected(inner, startR, startC, endR, endC, rows, cols);
+    if (!parent)
+    {
+      // 穿墙找最短路径，墙代价=1 路代价=0
+      const dist = Array.from({ length: rows }, () => Array(cols).fill(Infinity));
+      const prev = Array.from({ length: rows }, () => Array(cols).fill(null));
+      const pq = [[0, startR, startC]];
+      dist[startR][startC] = 0;
+      while (pq.length)
+      {
+        pq.sort((a, b) => a[0] - b[0]);
+        const [d, r, c] = pq.shift();
+        if (d !== dist[r][c]) continue;
+        if (r === endR && c === endC) break;
+        for (const [dr, dc] of [[-1,0],[1,0],[0,-1],[0,1]])
+        {
+          const nr = r + dr, nc = c + dc;
+          if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
+          const nd = d + (inner[nr][nc] === 'W' ? 1 : 0);
+          if (nd < dist[nr][nc]) { dist[nr][nc] = nd; prev[nr][nc] = [r, c]; pq.push([nd, nr, nc]); }
+        }
+      }
+      let cur = [endR, endC];
+      while (cur)
+      {
+        const [r, c] = cur;
+        if (inner[r][c] === 'W') inner[r][c] = 'P';
+        cur = prev[r][c];
+      }
+      inner[startR][startC] = 'S';
+      inner[endR][endC] = 'E';
+    }
+  }
+  else
+  {
+    // 不勾选 → 确保无通路。每次在连通路径的中间堵一堵墙，直到起终点不再连通。
+    // 使用带种子的 rng() 保证可复现；加守卫防止死循环。
+    let guard = rows * cols * 4;
+    while (guard-- > 0)
+    {
+      const parent = bfsConnected(inner, startR, startC, endR, endC, rows, cols);
+      if (!parent) break;
+      // 收集整条路径（path[0]=终点, path[last]=起点）
+      let cur = [endR, endC];
+      const path = [];
+      while (cur) { path.push(cur); cur = parent[cur[0]][cur[1]]; }
+      const pathLen = path.length;
+      // 起终点紧邻（无中间格可堵，且不能破坏 S/E），无法再安全阻断，直接结束
+      if (pathLen <= 2) break;
+      // 在距离起点 20%~85% 路径长度处堵墙（避开起终点）：索引落在 1..pathLen-2
+      const minStep = Math.max(2, Math.min(20, Math.floor(pathLen * 0.3)));
+      const maxStep = Math.min(pathLen - 2, Math.floor(pathLen * 0.85));
+      const step = minStep + Math.floor(rng() * (maxStep - minStep + 1));
+      const [r, c] = path[pathLen - 1 - step];
+      inner[r][c] = 'W';
+      inner[startR][startC] = 'S';
+      inner[endR][endC] = 'E';
+    }
+    inner[startR][startC] = 'S';
+    inner[endR][endC] = 'E';
+  }
+
   curRows = rows; curCols = cols;
   lastGrid = inner;
+
+  // 自动更新迷宫名称建议（仅当用户未手动修改时）
+  const nameInput = document.getElementById('mazeName');
+  const oldPattern = /^maze_\d+x\d+$/;
+  if (oldPattern.test(nameInput.value))
+    nameInput.value = 'maze_' + rows + 'x' + cols;
 
   // 渲染
   render(inner);
 
-  // 生成 KSON
-  let kson = '"maze":\n{\n    "maze_' + rows + 'x' + cols + '":\n    [\n';
-  for (let r = 0; r < rows; r++) {
-    let line = '';
-    for (let c = 0; c < cols; c++) line += inner[r][c];
-    kson += '        ["' + line + '"]' + (r < rows - 1 ? ',' : '') + '\n';
+  // 生成 KSON（使用用户指定的迷宫名称，RLE 压缩格式）
+  const mazeName = nameInput.value.trim() || 'maze_' + rows + 'x' + cols;
+  // 对名称做 KSON 转义，防止引号/反斜杠/换行破坏格式
+  function ksonEscapeKey(s) { return s.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\r/g, '\\r').replace(/\n/g, '\\n'); }
+  function rleEncode(str) {
+    let r = '';
+    for (let i = 0; i < str.length;) {
+      const c = str[i];
+      let cnt = 1;
+      while (i + cnt < str.length && str[i + cnt] === c) cnt++;
+      r += c + cnt;
+      i += cnt;
+    }
+    return r;
   }
-  kson += '    ]\n}';
+  let data = '';
+  for (let r = 0; r < rows; r++) {
+    data += rleEncode(inner[r].join(''));
+  }
+  let kson = '"' + ksonEscapeKey(mazeName) + '":\n    {\n';
+  kson += '        "w": ' + cols + ',\n';
+  kson += '        "data": "' + data + '"\n';
+  kson += '    }';
   document.getElementById('ksonOutput').value = kson;
 
   // 统计
@@ -225,6 +372,10 @@ function copyMatrix(btn) {
 function render(grid) {
   const display = document.getElementById('mazeDisplay');
   const colors = { W: '#666666', P: '#cccccc', S: '#50fa7b', E: '#8be9fd' };
+  // 根据迷宫大小动态调整字号
+  const size = Math.max(grid.length, grid[0].length);
+  const fontSize = size > 100 ? 10 : size > 50 ? 12 : size > 30 ? 14 : 18;
+  display.style.fontSize = fontSize + 'px';
   let html = '';
   for (let r = 0; r < grid.length; r++) {
     for (let c = 0; c < grid[0].length; c++) {
@@ -240,6 +391,20 @@ function render(grid) {
 ['rows', 'cols', 'density', 'seed'].forEach(id => {
   document.getElementById(id).addEventListener('input', function() {
     document.getElementById('densityVal').textContent = document.getElementById('density').value + '%';
+    if (document.getElementById('autoGen').checked) generate();
+  });
+});
+// 算法切换时自动生成
+document.getElementById('algorithm').addEventListener('change', function() {
+  if (document.getElementById('autoGen').checked) generate();
+});
+// 起点终点变化时立即刷新
+['startR', 'startC', 'endR', 'endC'].forEach(id => {
+  const el = document.getElementById(id);
+  el.addEventListener('input', function() {
+    if (document.getElementById('autoGen').checked) generate();
+  });
+  el.addEventListener('change', function() {
     if (document.getElementById('autoGen').checked) generate();
   });
 });

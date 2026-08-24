@@ -1,8 +1,10 @@
 #pragma once
 #include<vector>
 #include<algorithm>
+#include<stack>
 #include<cmath>
 #include<string>
+#include<queue>
 #include<random>
 #include<cstdlib>
 #include<stdexcept>
@@ -25,8 +27,8 @@ using Code = uint32_t;
 /**
  * @file KF.hpp
  * @brief KForge 所有基础模块的声明文件
- * @version 1.0.1
- * @date 2026-08-14
+ * @version 1.1.0
+ * @date 2026-08-24
  * @author Git-1145
  * @usage #include "KF.hpp"
  * @usage using namespace xxx; // xxx 为模块名
@@ -113,11 +115,6 @@ namespace KF
                  | (id & 0xFFF);
         }
 
-        /////////////////////////////////////////////////////////
-        // 错误码声明（定义在 KLOGGER.cpp，通过 MakeCode 组装）
-        // 头文件只放 extern 声明，改码时只需重编译 KLOGGER.cpp
-        /////////////////////////////////////////////////////////
-
         // 通用 / 测试模块 (01)
         extern const Code TEST_INFO;   // 测试-信息
         extern const Code TEST_WARN;   // 测试-警告
@@ -183,7 +180,6 @@ namespace KF
             constexpr const char* Bold    = "\033[1m";
         }
     }
-    /// @brief 大数运算库
     namespace KBIGNUM
     {
         class BigNum; // 前向声明，供自由函数签名使用
@@ -470,6 +466,10 @@ namespace KF
     /////////////////////////////////////////////////////////
     // MazeCell 枚举 + 迷宫字符常量（共享于 KFIO / KCLI）
     /////////////////////////////////////////////////////////
+    constexpr char MAZE_WALL  = 'W';   // 墙字符
+    constexpr char MAZE_PATH  = 'P';   // 通路字符
+    constexpr char MAZE_START = 'S';   // 起点字符
+    constexpr char MAZE_END   = 'E';   // 终点字符
     enum MazeCell
     {
         WALL,      // 墙
@@ -479,11 +479,6 @@ namespace KF
         END,       // 终点
         PATH       // 最终路径
     };
-    constexpr char MAZE_WALL  = 'W';   // 墙字符
-    constexpr char MAZE_PATH  = 'P';   // 通路字符
-    constexpr char MAZE_START = 'S';   // 起点字符
-    constexpr char MAZE_END   = 'E';   // 终点字符
-
     namespace KFIO
     {
         std::string ReadFileRaw(std::string_view filepath);// 读取文件(粗文本 没有任何处理)
@@ -710,6 +705,10 @@ namespace KF
         }
 
         void KBegin(const KSON::kson file);//从文件中读取
+
+        /// @brief 全局配置：KBegin 时自动读取 config/global.kson 的 data 节点
+        /// @details 程序内任意位置可直接使用 GLOBAL["键"] 读取全局配置项
+        extern KSON::kson GLOBAL;
         /// @brief 显示选项菜单，循环等待用户输入合法选项
         /// @param menu KSON 节点，需含 "title" 和 "options"（字符串数组）
         /// @return 选中项索引（0-based），输入非法时循环提示
@@ -722,7 +721,30 @@ namespace KF
         void KEnd();
         ////////////////////////////////////////杂函数/////////////////////////
 
-        void PrintMaze(const std::vector<std::vector<MazeCell>>& maze);
+        /// @brief 迷宫可视化打印（全量刷新，内部含 \033[H/\033[K/\033[J）
+        class Maze
+        {
+            public:
+                static void Print(const std::vector<std::vector<MazeCell>>& maze);
+        };
+
+        /// @brief 数组柱状图打印（基于序号，不显示数字，柱状条用 #）
+        class Arr
+        {
+            public:
+                static void Print(const std::vector<size_t>& ranks, size_t n,
+                                int barMax = 50, int highlight1 = -1,
+                                int highlight2 = -1, int sortedUntil = -1);
+        };
+        /// @brief 经典 cmd 下自动分级适配（先调窗口→缩字号到 6→全屏）；keepIfFits=true 时内容过小则保持原窗口
+        /// @param rows 需要显示的行数
+        /// @param cols 需要显示的列数
+        /// @param keepIfFits 内容过小时保持原窗口（迷宫场景传 true）
+        /// @return 恒为 true（cmd 下总是尽力适配）
+        bool CheckConsoleFit(int rows, int cols, bool keepIfFits = false);
+
+        /// @brief ANSI 清屏（光标归位+清除屏幕），替代 system("cls") 避免闪屏
+        void ClearScreen();
     }
     namespace KTIMER
     {

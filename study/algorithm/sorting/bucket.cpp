@@ -8,6 +8,9 @@ using namespace KTIMER;
 using NUM = uint32_t;
 NUM n;
 vector<NUM> arr;
+long long printSleep = 0; // 每次打印后的停顿(ms)，来自 GLOBAL["ArrPrintSleep"]
+size_t printEvery = 1;   // 每打印一次间隔的写入数（用户输入），0=不停顿
+long long BarMax = 50;
 void BucketSort(vector<NUM>& a, size_t rule)
 {
     if (a.empty()) return;
@@ -17,6 +20,23 @@ void BucketSort(vector<NUM>& a, size_t rule)
     vector<NUM> res;
     res.reserve(n);
     AddTimer("BUCKET SORT",TimeUnit::us);
+
+    if (printSleep > 0) ClearScreen();
+    vector<size_t> bar(n, 0);   // 各位置名次（1..n），桶序天然有序 → 名次=当前位置
+    size_t filled = 0;
+    size_t cnt = 0;
+    auto put = [&](NUM v) {
+        res.push_back(v);
+        bar[filled] = filled + 1;           // 桶序从小到大填，当前位置即最终有序位
+        filled++;
+        ++cnt;
+        if (printSleep > 0 && cnt % printEvery == 0)
+        {
+            Arr::Print(bar, n, BarMax, (int)(filled - 1));
+            Sleep((DWORD)printSleep);
+        }
+    };
+
     // 计数
     for(size_t i = 0; i < n; i++)
         tmp[a[i]]++;
@@ -25,16 +45,17 @@ void BucketSort(vector<NUM>& a, size_t rule)
         for(size_t i = 0; i < tmp.size(); i++)
             if(tmp[i] != 0)
                 for(size_t j = 0; j < tmp[i]; j++)
-                    res.push_back(static_cast<NUM>(i));
+                    put(static_cast<NUM>(i));
     }
     else // descending
     {
         for(size_t i = tmp.size()-1; i > 0; i--)
             if(tmp[i] != 0)
                 for(size_t j = 0; j < tmp[i]; j++)
-                    res.push_back(static_cast<NUM>(i));
+                    put(static_cast<NUM>(i));
     }
     PrintTimer("BUCKET SORT");
+    if (printSleep > 0) { Arr::Print(bar, n, BarMax); }
     bool out = true;
     kout << "Output result?: ";
     kin >> out;
@@ -51,14 +72,16 @@ int main()
     kson file = ReadKsonFile("config/algorithm/cfg.kson");
     kson main = file["Algorithm"]["Sorting"]["BucketSort"];
     KBegin(main);
+    printSleep = GLOBAL["ArrPrintSleep"].Int();
+    BarMax = GLOBAL["BarMax"].Int();
     size_t rule = KOptions(main["sort_method"]);
     bool isgen=false;
     kout << "size of array: ";
     kin >> n;
-    arr.clear(); // 清空，push_back 会从零开始追加
+    arr.clear();
     try
     {
-        arr.reserve(n); // 预分配容量，避免多次扩容
+        arr.reserve(n); // 预分配容量
     } catch (const std::bad_alloc& e) {
         Fatal(SYSTEM_OOM, "can not reserve the vector",__FILE__,__LINE__,__FUNCTION__);
     }
@@ -82,6 +105,9 @@ int main()
             arr.push_back(x);
         }
     }
+    kout << "Pause every N writes (0=off, recommended 1): ";
+    kin >> printEvery;
+    if (printSleep > 0) CheckConsoleFit((int)n + 3, BarMax + 3);
     BucketSort(arr, rule);
     kout << "Time Complexity: " << main["time_complexity"].Str() << "\n\n";
     KEnd();

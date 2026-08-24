@@ -36,6 +36,23 @@
                 "options":["Ascending","Descending"]
             },
             "time_complexity":"{skyblue}O(n){/}"
+        },
+        "BogoSort":
+        {
+            "meta":
+            {
+                "cmdtitle": "猴子排序",
+                "title": "Bogo Sort",
+                "description":"Bogo sort is a humorous, highly‑inefficient sorting algorithm\nIt repeatedly randomly shuffles the array and checks whether it becomes sorted\n It stops only when luck produces an ordered sequence\n{orange}It is for teaching fun concepts and never used in real‑world projects{/}",
+                "author":"ByeByeBite",
+                "date":"2026-08-24"
+            },
+            "sort_method":
+            {
+                "name":"Choose the sorting RULE",
+                "options":["Ascending","Descending"]
+            },
+            "time_complexity":"{skyblue}O(n * n!){green}\nBEST: O(1)\n{red}WORST: O(inf){/}"
         }
     },
     "Searching":
@@ -46,9 +63,32 @@
             {
                 "cmdtitle": "深度优先搜索",
                 "title": "Depth-First Search",
-                "description": "Depth-First Search is a {yellow}graph traversal{skyblue} algorithm that explores as far as possible along each branch before backtracking. \nIt uses a stack to keep track of the nodes to be visited.",
+                "description": "Depth‑First Search explores as far as possible along one path before backtracking\nIt can enumerate all paths
+                 but cannot rapidly get the shortest path in unweighted mazes.{red}time_complexity is O(4^n){/}",
                 "author": "ByeByeBite",
                 "date": "2026-08-20"
+            }
+        },
+        "BFS":
+        {
+            "meta":
+            {
+                "cmdtitle": "广度优先搜索",
+                "title": "Breadth-First Search",
+                "description": "Breadth‑First Search uses a queue to visit nodes layer by layer\nThe first time it reaches the target guarantees\nthe shortest path for unweighted grid‑based mazes.",
+                "author": "ByeByeBite",
+                "date": "2026-08-21"
+            }
+        },
+        "AStar":
+        {
+            "meta":
+            {
+                "cmdtitle": "A* 搜索",
+                "title": "A* Search",
+                "description": "A* uses a priority queue guided by f = g + h to find the shortest path\nIt combines the advantages of Dijkstra (optimality) and Greedy (efficiency)\nusing Manhattan distance as heuristic.",
+                "author": "ByeByeBite",
+                "date": "2026-08-22"
             }
         }
     }

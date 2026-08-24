@@ -207,7 +207,7 @@ setlocal disabledelayedexpansion
 >>"%out%" echo for /l %%%%i in (1,1,!filecount!) do echo     %%%%i. !file_%%%%i!
 >>"%out%" echo echo.
 >>"%out%" echo set "choice="
->>"%out%" echo set /p "choice=  Select numbers (e.g. 1,3) or Enter for all: "
+>>"%out%" echo set /p "choice=  Select numbers (e.g. 1 3) or Enter for all: "
 >>"%out%" echo.
 >>"%out%" echo if not exist "!DIR!\Release" mkdir "!DIR!\Release"
 >>"%out%" echo.

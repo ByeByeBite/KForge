@@ -1,7 +1,4 @@
 #include "base/KF.hpp"
-#include <thread>
-#include <chrono>
-
 using namespace std;
 using namespace KFIO;
 using namespace KSON;
@@ -9,42 +6,45 @@ using namespace KCLI;
 using namespace KTIMER;
 using namespace KF;
 
-int totalVisited = 0;      // 已探索格子数
-int totalCells = 0;        // 迷宫 P 总数
+size_t totalVisited = 0;      // 已探索格子数
+size_t totalCells = 0;        // 迷宫 P 总数
+size_t printEvery = 0;        // 每打印一次间隔的步数（用户输入），0=不打印
+static long long printSleep;  // 每次打印后的停顿(ms)，来自 GLOBAL["MazePrintSleep"]
 bool foundExit = false;
 vector<vector<MazeCell>> maze;
-int printInterval = 0;     // 打印停顿(ms)，0=静默
+int rows, cols;
 
-// r=行号, c=列号
-void DFS(int r, int c, int rows, int cols)
+void DFS(int startR, int startC, int endR, int endC)
 {
-    if (foundExit) return;
-
+    /// @attention 此函数 使用显式栈 实现 DFS 不是递归
+    stack<pair<int,int>> st;
+    st.push({startR, startC});
     int dr[] = {-1, 1, 0, 0};
     int dc[] = {0, 0, -1, 1};
 
-    for (int i = 0; i < 4; i++)
+    while (!st.empty() && !foundExit)
     {
-        int nr = r + dr[i], nc = c + dc[i];
-        if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
+        auto [r, c] = st.top(); st.pop();
 
-        MazeCell& cell = maze[nr][nc];
-        if (cell == END) { foundExit = true; return; }
-        if (cell == WALL || cell == VISITED || cell == START) continue;
-
-        cell = VISITED;
-        totalVisited++;
-        DFS(nr, nc, rows, cols);
-        if (foundExit) return;
-
-        if (printInterval > 0)
+        for (int i = 0; i < 4; i++)
         {
-            PauseTimer("search");
-            system("cls");
-            PrintMaze(maze);
-            kout << "Visited:{lightgray}" << totalVisited << "{/} / " << totalCells << endl;
-            this_thread::sleep_for(chrono::milliseconds(printInterval));
-            StartTimer("search");
+            int nr = r + dr[i], nc = c + dc[i];
+            if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
+
+            MazeCell& cell = maze[nr][nc];
+            if (cell == WALL || cell == VISITED || cell == START) continue;
+            if (cell == END) { foundExit = true; break; }
+
+            cell = VISITED;
+            totalVisited++;
+            st.push({nr, nc});
+
+            if (printEvery > 0 && totalVisited % printEvery == 0)
+            {
+                Maze::Print(maze);
+                kout << "Visited:{lightgray}" << totalVisited << "{/} / " << totalCells << endl;
+                Sleep(printSleep);
+            }
         }
     }
 }
@@ -53,6 +53,9 @@ int main()
 {
     kson file = ReadKsonFile("config/algorithm/cfg.kson");
     KBegin(file["Algorithm"]["Searching"]["DFS"]);
+    printSleep = GLOBAL["MazePrintSleep"].Int();
+    ios::sync_with_stdio(false);
+    cin.tie(nullptr);
 
     kson doc = ReadKsonFile("config/algorithm/maze.kson");
     const Node* mazeNode = doc["maze"].Resolve();
@@ -82,10 +85,9 @@ int main()
         kout << "{lightyellow}Maze '" << choice << "' not found, using 'small'{/}" << endl;
         choice = "small";
     }
-
     maze = ReadMaze("config/algorithm/maze.kson", choice);
-    int rows = (int)maze.size();
-    int cols = (int)maze[0].size();
+    rows = (int)maze.size();
+    cols = (int)maze[0].size();
 
     totalCells = 0;
     for (const auto& row : maze)
@@ -105,15 +107,16 @@ int main()
     kout << "Start: (" << startR << "," << startC << ")" << endl;
     kout << "End:   (" << endR << "," << endC << ")" << endl;
 
-    kout << "Print pause (ms, 0=no print): ";
-    kin >> printInterval;
+    CheckConsoleFit(rows, cols, true);
 
+    kout << "Print every N steps (0=no print): ";
+    kin >> printEvery;
+    ClearScreen();
     AddTimer("search", TimeUnit::us);
-    DFS(startR, startC, rows, cols);
+    DFS(startR, startC, endR, endC);
     PauseTimer("search");
-
-    system("cls");
-    PrintMaze(maze);
+    ClearScreen();
+    Maze::Print(maze);
     kout << endl;
     kout << "{bold}Search complete!{/}" << endl;
     kout << "Visited cells:{lightgray}" << totalVisited << "{/} / " << totalCells << endl;
@@ -122,7 +125,5 @@ int main()
         kout << "{green}Exit found!{/}" << endl;
     else
         kout << "{red}No path to exit!{/}" << endl;
-
-    KPause();
-    return 0;
+    KEnd();
 }
