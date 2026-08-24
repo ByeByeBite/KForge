@@ -82,8 +82,8 @@ int main()
         kout << "{lightyellow}Maze '" << choice << "' not found, using 'small'{/}" << endl;
         choice = "small";
     }
-
     maze = ReadMaze("config/algorithm/maze.kson", choice);
+    /// @brief 提前看迷宫 获得基本信息
     int rows = (int)maze.size();
     int cols = (int)maze[0].size();
 
@@ -107,11 +107,11 @@ int main()
 
     kout << "Print pause (ms, 0=no print): ";
     kin >> printInterval;
-
+    /// @brief 开始搜索
     AddTimer("search", TimeUnit::us);
     DFS(startR, startC, rows, cols);
     PauseTimer("search");
-
+    /// @brief 打印结果
     system("cls");
     PrintMaze(maze);
     kout << endl;
