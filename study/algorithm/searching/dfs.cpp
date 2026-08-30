@@ -86,8 +86,8 @@ int main()
         choice = "small";
     }
     maze = ReadMaze("config/algorithm/maze.kson", choice);
-    rows = (int)maze.size();
-    cols = (int)maze[0].size();
+    int rows = (int)maze.size();
+    int cols = (int)maze[0].size();
 
     totalCells = 0;
     for (const auto& row : maze)
@@ -107,16 +107,15 @@ int main()
     kout << "Start: (" << startR << "," << startC << ")" << endl;
     kout << "End:   (" << endR << "," << endC << ")" << endl;
 
-    CheckConsoleFit(rows, cols, true);
+    kout << "Print pause (ms, 0=no print): ";
+    kin >> printInterval;
 
-    kout << "Print every N steps (0=no print): ";
-    kin >> printEvery;
-    ClearScreen();
     AddTimer("search", TimeUnit::us);
     DFS(startR, startC, endR, endC);
     PauseTimer("search");
-    ClearScreen();
-    Maze::Print(maze);
+
+    system("cls");
+    PrintMaze(maze);
     kout << endl;
     kout << "{bold}Search complete!{/}" << endl;
     kout << "Visited cells:{lightgray}" << totalVisited << "{/} / " << totalCells << endl;
