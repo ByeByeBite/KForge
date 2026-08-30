@@ -216,11 +216,7 @@ namespace KF
         /// @brief limb 是否表示 0
         inline bool IsZero(const std::vector<limb>& v){ return v.size() == 1 && v[0] == 0; }
 
-        //===============================================================
-        //  组件通用特征 BigTraits / 通用转换（供 BigFrc/BigCpx 模板组件复用）
-        //  主模板以量级（limbs/scale）判零判负；BigFrc/BigCpx 有特化（见下方）。
-        //===============================================================
-        /// @brief 组件通用特征：提供判零/判负/零值/一值的统一接口（默认按量级 limbs/isneg）
+        /// @brief 提供判零/判负/零值/一值的统一接口
         template<class T, class Enable = void> struct BigTraits
         {
             // 默认（量级组件 BigInt/BigDec 及递归的 BigFrc/BigCpx）：判零判负按 limbs/isneg
@@ -229,8 +225,7 @@ namespace KF
             static T zero(){ return T(); }
             static T one(){ return T(1); }
         };
-        /// @brief BigTraits 特化：标量组件（int/double 等）按数值判零判负
-        // 标量组件（int/double 等）：判零判负按数值
+        /// @brief int/double 等按数值判零判负
         template<class T> struct BigTraits<T, std::enable_if_t<std::is_arithmetic_v<T>>>
         {
             static bool is_zero(const T& v){ return v == 0; }
@@ -238,23 +233,16 @@ namespace KF
             static T zero(){ return T(0); }
             static T one(){ return T(1); }
         };
-        // 组件通用转换（定义见 BigFrc/BigCpx 之后）：任意四类数学类型 → BigDec
-        /// @brief 任意数学类型转 BigDec（供组件归一化）——声明，定义见类定义之后
+        /// @brief 任意数学类型转 BigDec
         inline BigDec toBigDec(const BigDec& x);
         inline BigDec toBigDec(const BigInt& x);
         template<class N, class D> BigDec toBigDec(const BigFrc<N,D>& x);
         template<class R, class I> BigDec toBigDec(const BigCpx<R,I>& x);
-        // 组件通用转换：BigDec → 指定组件类型 R（BigFromDec<R>::from）
-        // BigFromDec<BigDec>/<BigInt> 具体特化须在 BigInt/BigDec 完整定义之后（见 BigDec 类后方）
         /// @brief BigDec → 组件类型 R 的转换工具模板（BigFromDec<R>::from）
         template<class R, class Enable = void> struct BigFromDec;
 
-        //===============================================================
-        //  共享量级核心基类 BigNum（十进制通用：limbs/isneg/scale/state +
-        //  量级算术原语）。BigInt/BigDec 直接派生共用该存储；BigFrc/BigCpx
-        //  也派生自 BigNum（继承状态/比较/类型体系）但各自持有私有数据。
-        //===============================================================
-        /// @brief 十进制大数量级核心基类：共享 limbs 存储/状态(inf/nan)/量级算术/比较/流及 native 转换
+
+        /// @brief  limbs 存储/状态(inf/nan)/量级算术/比较 转换
         class BigNum
         {
             public:
@@ -317,7 +305,7 @@ namespace KF
                 friend std::ostream& operator<<(std::ostream& os, const BigNum& b){ os << b.ToStr(); return os; }
                 friend std::istream& operator>>(std::istream& is, BigNum& b){ std::string t; if(is >> t) b = BigNum(t); return is; }
 
-                explicit operator long long() const; // 范围内 native 转换
+                explicit operator long long() const; // 范围内转换
                 explicit operator double() const;
                 bool IsInLongLongRange() const;
                 bool IsInDoubleRange() const;
@@ -336,9 +324,6 @@ namespace KF
                 }
         };
 
-        //===============================================================
-        //  大整数 BigInt（scale 恒为 0，纯整数）
-        //===============================================================
         /// @brief 大整数：scale 恒为 0 的纯整数，构造函数自动取整截断小数
         class BigInt : public BigNum
         {
@@ -408,12 +393,6 @@ namespace KF
                         return BigInt(std::to_string(num));
                 }
         };
-
-        //===============================================================
-        //  大小数 BigDec（整数 + scale 位小数）
-        //  直接继承 BigNum 的十进制量级存储(storage)与算术原语，仅保留
-        //  BigDec 类型返回（算术逻辑全部复用基类 BigNum 实现）。
-        //===============================================================
         /// @brief 大小数：整数 + scale 位小数，算术逻辑复用基类 BigNum，仅保持返回类型为 BigDec
         class BigDec : public BigNum
         {
@@ -457,8 +436,6 @@ namespace KF
                 friend BigDec operator/(const T& a, const BigDec& b) { return BigDec(a) / b; }
                 template<typename T, std::enable_if_t<std::is_arithmetic_v<T>, int> = 0>
                 friend BigDec operator%(const T& a, const BigDec& b) { return BigDec(a) % b; }
-
-                // 比较 / 流输出 / native 转换 / 范围判断 均继承自 BigNum（共享实现）
             private:
                 template<typename T> static BigDec FromArith(T v)
                 {
@@ -472,20 +449,12 @@ namespace KF
                     }
                 }
         };
-
-        //===============================================================
-        //  BigFromDec<BigInt>/<BigDec> 具体特化（此时 BigInt/BigDec 已完整定义）
         //===============================================================
         /// @brief BigFromDec 特化：BigDec → BigDec（恒等）
         template<> struct BigFromDec<BigDec>{ static BigDec from(const BigDec& d){ return d; } };
         /// @brief BigFromDec 特化：BigDec → BigInt（取整）
         template<> struct BigFromDec<BigInt>{ static BigInt from(const BigDec& d){ return BigInt(d); } };
 
-        //===============================================================
-        //  分数 BigFrc<N,D>（分子 N、分母 D，分母恒为正）
-        //  组件 N/D 可为四类数学类型任意嵌套；继承 BigNum 状态/类型体系，
-        //  但持有自定义数据（分子/分母）。默认 N=D=BigInt。
-        //===============================================================
         /// @brief 分数：分子 N/分母 D 组件可任意嵌套，分母恒归一化为正，默认 BigFrc<BigInt,BigInt>
         template<class N, class D>
         class BigFrc : public BigNum
@@ -562,14 +531,10 @@ namespace KF
                 { std::string t; if(is >> t) f = BigFrc<N,D>(BigDec(t)); return is; }
         };
 
-        //===============================================================
-        //  复数 BigCpx<R,I>（实部 R、虚部 I）
-        //  组件 R/I 可为四类数学类型任意嵌套；默认 R=I=BigDec 与旧用法一致。
-        //  Abs/除法等需要去 BigDec 的路径用 toBigDec 归一后经 BigFromDec 回写。
-        //===============================================================
         /// @brief n 次方根本身（前向声明，供 BigCpx::Abs 取模长）
         // Root 前向声明（供 Abs 取模长；默认 BigCpx = BigCpx<BigDec,BigDec>）
         BigCpx<> Root(const BigDec& a, const BigDec& n);
+
         /// @brief 复数：实部 R/虚部 I 组件可任意嵌套，提供共轭/模长及四则运算，默认 BigCpx<BigDec,BigDec>
         template<class R, class I>
         class BigCpx : public BigNum
@@ -646,21 +611,18 @@ namespace KF
         template<class N, class D> BigDec toBigDec(const BigFrc<N,D>& x){ return x.ToBigDec(); }
         template<class R, class I> BigDec toBigDec(const BigCpx<R,I>& x){ return toBigDec(x.re); }
         /// @brief toBigDec 重载：标量组件（int/double 等）直接转为 BigDec
-        // 标量组件（int/double 等）：直接转为 BigDec
         template<typename T, std::enable_if_t<std::is_arithmetic_v<T>, int> = 0>
         inline BigDec toBigDec(const T& x){ return BigDec(x); }
-        /// @brief BigFromDec 特化：BigDec → BigFrc（精确小数→分数）
-        // BigDec → 指定组件类型 R（BigFrc 走精确小数→分数；BigCpx 作为实部；标量走数值截断）
+        /// @brief ：BigDec → BigFrc（精确小数→分数）
         template<class N, class D> struct BigFromDec<BigFrc<N,D>>
         { static BigFrc<N,D> from(const BigDec& d){ return BigFrc<N,D>(d); } };
-        /// @brief BigFromDec 特化：BigDec → BigCpx（作为实部）
+        /// @brief ：BigDec → BigCpx（作为实部）
         template<class R, class I> struct BigFromDec<BigCpx<R,I>>
         { static BigCpx<R,I> from(const BigDec& d){ return BigCpx<R,I>(d); } };
-        /// @brief BigFromDec 特化：BigDec → 标量组件（数值截断）
+        /// @brief ：BigDec → 组件（数值截断）
         template<typename T> struct BigFromDec<T, std::enable_if_t<std::is_arithmetic_v<T>>>
         { static T from(const BigDec& d){ return static_cast<T>(std::stod(d.ToStr())); } };
-        // 组件特征偏特化：BigFrc 以分子判零判负；BigCpx 以实部判零判负（共轭态无负号）
-        /// @brief BigTraits 特化：BigFrc 以分子判零判负
+        /// @brief BigFrc 以分子判零判负
         template<class N, class D> struct BigTraits<BigFrc<N,D>>
         {
             static bool is_zero(const BigFrc<N,D>& v){ return BigTraits<N>::is_zero(v.numerator); }
@@ -687,34 +649,13 @@ namespace KF
         inline BigDec  Abs(const BigCpx<>& z){ return z.Abs(); } // 默认 BigCpx<BigDec,BigDec> 的 Abs() 即 BigDec 模长
 
         //===============================================================
-        //  自由函数
-        //===============================================================
-        /// @brief 数字串合法化：去除小数点及首尾导 0
-        std::string Normalize(const std::string& str); // 合法化：去小数点 去前后导0
-        /// @brief 对齐小数位（数值不变，要求 newScale >= x.scale）
-        BigDec ScaleTo(const BigDec& x, size_t newScale); // 对齐小数位（数值不变，要求 newScale >= x.scale）
-        /// @brief 非负整数最大公约数（欧几里得）
-        BigInt BigGcd(BigInt a, BigInt b); // 非负整数最大公约数（欧几里得）
-        /// @brief 幂：a^b（快速幂，支持负/分数指数与 inf-nan 规则）
-        BigDec Pow(const BigDec& a, const BigDec& b); // 幂：a^b（快速幂，支持负/分数指数与 inf-nan 规则）
-        /// @brief n 次方根：a^(1/n)；负数开偶次方返回虚数(实部0/虚部 BigDec)
-        BigCpx<> Root(const BigDec& a, const BigDec& n); // n 次方根：a^(1/n)；负数开偶次方返回虚数(实部0/虚部 BigDec)
-        /// @brief 随机整数（位数范围 + 符号：0随机/1全正/2全负）
-        BigInt RandBigInt(std::pair<size_t,size_t> IntRand = {0,0}, int sign = 0); // 随机整数(位数范围 符号:0随机/1全正/2全负)
-        /// @brief 随机小数（整数位数 + 小数位数 + 符号）
-        BigDec RandBigDec(std::pair<size_t,size_t> IntRand = {0,0}, std::pair<size_t,size_t> DecRand = {0,0}, int sign = 0); // 随机小数(整数位数 小数位数 符号)
-        /// @brief 随机小数别名，等价于 RandBigDec
-        inline BigDec RandBigNum(std::pair<size_t,size_t> i = {0,0}, std::pair<size_t,size_t> d = {0,0}, int s = 0){ return RandBigDec(i, d, s); }
-
-        //===============================================================
         //  跨类型自动提升（BigInt < BigDec < BigFrc < BigCpx）
         //===============================================================
-        /// @brief 跨类型加法：低等级类型自动提升到高等级后运算
         template<class A, class B,
             std::enable_if_t<IsMathType<A>::value && IsMathType<B>::value && !std::is_same_v<A,B>, int> = 0>
         auto operator+(const A& a, const B& b)
         { if constexpr (MathRank<A>::value < MathRank<B>::value) return B{a} + b; else return a + A{b}; }
-        /// @brief 跨类型减法：低等级类型自动提升到高等级后运算
+        /// @brief 跨类型加法：低等级类型自动提升到高等级后运算
         template<class A, class B,
             std::enable_if_t<IsMathType<A>::value && IsMathType<B>::value && !std::is_same_v<A,B>, int> = 0>
         auto operator-(const A& a, const B& b)
@@ -724,12 +665,11 @@ namespace KF
             std::enable_if_t<IsMathType<A>::value && IsMathType<B>::value && !std::is_same_v<A,B>, int> = 0>
         auto operator*(const A& a, const B& b)
         { if constexpr (MathRank<A>::value < MathRank<B>::value) return B{a} * b; else return a * A{b}; }
-        /// @brief 跨类型除法：低等级类型自动提升到高等级后运算
         template<class A, class B,
             std::enable_if_t<IsMathType<A>::value && IsMathType<B>::value && !std::is_same_v<A,B>, int> = 0>
         auto operator/(const A& a, const B& b)
         { if constexpr (MathRank<A>::value < MathRank<B>::value) return B{a} / b; else return a / A{b}; }
-        /// @brief 跨类型相等比较：低等级类型自动提升到高等级后比较
+        /// @brief 跨类型除法：低等级类型自动提升到高等级后运算
         template<class A, class B,
             std::enable_if_t<IsMathType<A>::value && IsMathType<B>::value && !std::is_same_v<A,B>, int> = 0>
         bool operator==(const A& a, const B& b)
@@ -759,6 +699,28 @@ namespace KF
             std::enable_if_t<IsMathType<A>::value && IsMathType<B>::value && !std::is_same_v<A,B>, int> = 0>
         auto operator>=(const A& a, const B& b)
         { if constexpr (MathRank<A>::value < MathRank<B>::value) return B{a} >= b; else return a >= A{b}; }
+
+        
+        //===============================================================
+        //  自由函数
+        //===============================================================
+        /// @brief 数字串合法化：去除小数点及首尾导 0
+        std::string Normalize(const std::string& str); // 合法化：去小数点 去前后导0
+        /// @brief 对齐小数位（数值不变，要求 newScale >= x.scale）
+        BigDec ScaleTo(const BigDec& x, size_t newScale); // 对齐小数位（数值不变，要求 newScale >= x.scale）
+        /// @brief 非负整数最大公约数（欧几里得）
+        BigInt BigGcd(BigInt a, BigInt b); // 非负整数最大公约数（欧几里得）
+        /// @brief 幂：a^b（快速幂，支持负/分数指数与 inf-nan 规则）
+        BigDec Pow(const BigDec& a, const BigDec& b); // 幂：a^b（快速幂，支持负/分数指数与 inf-nan 规则）
+        /// @brief n 次方根：a^(1/n)；负数开偶次方返回虚数(实部0/虚部 BigDec)
+        BigCpx<> Root(const BigDec& a, const BigDec& n); // n 次方根：a^(1/n)；负数开偶次方返回虚数(实部0/虚部 BigDec)
+        /// @brief 随机整数（位数范围 + 符号：0随机/1全正/2全负）
+        BigInt RandBigInt(std::pair<size_t,size_t> IntRand = {0,0}, int sign = 0); // 随机整数(位数范围 符号:0随机/1全正/2全负)
+        /// @brief 随机小数（整数位数 + 小数位数 + 符号）
+        BigDec RandBigDec(std::pair<size_t,size_t> IntRand = {0,0}, std::pair<size_t,size_t> DecRand = {0,0}, int sign = 0); // 随机小数(整数位数 小数位数 符号)
+        /// @brief 随机小数别名，等价于 RandBigDec
+        inline BigDec RandBigNum(std::pair<size_t,size_t> i = {0,0}, std::pair<size_t,size_t> d = {0,0}, int s = 0){ return RandBigDec(i, d, s); }
+
     }
     namespace KSON
     {
