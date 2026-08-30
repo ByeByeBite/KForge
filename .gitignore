@@ -16,3 +16,4 @@ cmake_install.cmake
 *.vcxproj.filters
 **/Release/
 .analysis/
+base/KF.hpp.bak_orig
