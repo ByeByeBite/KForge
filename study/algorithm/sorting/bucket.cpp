@@ -1,6 +1,6 @@
 #include "base/KF.hpp"
 using namespace std;
-using namespace KBIGNUM;
+using namespace KMATH;
 using namespace KCLI;
 using namespace KUTIL;
 using namespace KSON;

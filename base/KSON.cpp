@@ -42,7 +42,10 @@ namespace KF
         Node::Node(bool val) noexcept : Data(val) {}        // 从 bool 构造，类型为 kBool
         Node::Node(long long val) noexcept : Data(val) {}   // 从 long long 构造，类型为 kInt
         Node::Node(double val) noexcept : Data(val) {}      // 从 double 构造，类型为 kDec
-        Node::Node(KBIGNUM::BigNum val) noexcept : Data(std::move(val)) {}  // 从 BigNum 构造，类型为 kBig
+        Node::Node(KMATH::BigDec val) noexcept : Data(std::move(val)) {}  // 从 BigDec 构造，类型为 kBig
+        Node::Node(KMATH::BigInt val) noexcept : Data(KMATH::BigDec(val)) {}   // 从 BigInt 构造，转 BigDec 存储
+        Node::Node(KMATH::BigFrc<> val) noexcept : Data(val.ToBigDec()) {}       // 从 BigFrc 构造，转 BigDec 存储
+        Node::Node(KMATH::BigCpx<> val) noexcept : Data(val.re) {}               // 从 BigCpx 构造，取实部转 BigDec 存储
         Node::Node(std::string val) noexcept : Data(std::move(val)) {}  // 从 string 构造，类型为 kStr
         Node::Node(std::vector<Node> val) : Data(std::move(val)) {}     // 从数组构造，类型为 kArr
         Node::Node(std::vector<std::pair<std::string, Node>> val) : Data(std::move(val)) {}  // 从对象构造，类型为 kObj
@@ -58,7 +61,7 @@ namespace KF
                 else if constexpr (std::is_same_v<T, bool>) return NodeType::kBool;
                 else if constexpr (std::is_same_v<T, long long>) return NodeType::kInt;
                 else if constexpr (std::is_same_v<T, double>) return NodeType::kDec;
-                else if constexpr (std::is_same_v<T, KBIGNUM::BigNum>) return NodeType::kBig;
+                else if constexpr (std::is_same_v<T, KMATH::BigDec>) return NodeType::kBig;
                 else if constexpr (std::is_same_v<T, std::string>) return NodeType::kStr;
                 else if constexpr (std::is_same_v<T, arr_t>) return NodeType::kArr;
                 else return NodeType::kObj;
@@ -101,9 +104,9 @@ namespace KF
             return std::get<double>(Data);
         }
         /// @brief 取大数引用
-        const KBIGNUM::BigNum& Node::AsBig() const {
+        const KMATH::BigDec& Node::AsBig() const {
             if (!IsBig()) KLOG_ERROR(KSON_TYPE_MISMATCH, "Node is not big number");
-            return std::get<KBIGNUM::BigNum>(Data);
+            return std::get<KMATH::BigDec>(Data);
         }
         /// @brief 取字符串
         std::string_view Node::AsStr() const {
@@ -263,8 +266,8 @@ namespace KF
                             }
                             if(!fitsInt64)
                             {
-                                // 超出 int64_t 范围 → 自动切换为 BigNum
-                                return Node(KBIGNUM::BigNum::ToBig(res));
+                                // 超出 int64_t 范围 → 自动切换为 BigDec
+                                return Node(KMATH::BigDec::ToBig(res));
                             }
                             // stoll 在数字非法/溢出时会抛 invalid_argument / out_of_range，必须捕获
                             try { return Node(std::stoll(res)); }
@@ -343,10 +346,10 @@ namespace KF
                             else        fullStr = "+" + fullStr;
 
                             // 用 Normalize 清理 + ToBig 转换
-                            return Node(KBIGNUM::BigNum::ToBig(KBIGNUM::Normalize(fullStr)));
+                            return Node(KMATH::BigDec::ToBig(KMATH::Normalize(fullStr)));
                         }
                         case 3: //大数（'B'后缀强制）
-                            return Node(KBIGNUM::BigNum::ToBig(res));
+                            return Node(KMATH::BigDec::ToBig(res));
                         default: //暂不支持的数字类型
                             KLOG_ERROR(KSON_PARSE_NUM_USTYPE,"");
                             try { return Node(std::stoll(res)); }
@@ -457,9 +460,9 @@ namespace KF
                     case CHAR_QUOTE1:
                     {
                         std::string s = ParseStr();
-                        // 引号字符串 inf/-inf/nan（大小写不敏感）→ 自动转为 BigNum 特殊状态
-                        KBIGNUM::BigNum sp(s);
-                        if(sp.state != KBIGNUM::BigNum::State::Normal)
+                        // 引号字符串 inf/-inf/nan（大小写不敏感）→ 自动转为 BigDec 特殊状态
+                        KMATH::BigDec sp(s);
+                        if(sp.state != KMATH::BigDec::State::Normal)
                             return Node(sp);
                         return Node(std::move(s));
                     }
@@ -470,7 +473,7 @@ namespace KF
                     case 'i':
                     case 'I': // inf → 正无穷
                         if(MatchKw("inf"))
-                            return Node(KBIGNUM::BigNum(KBIGNUM::BigNum::State::Inf));
+                            return Node(KMATH::BigDec(KMATH::BigDec::State::Inf));
                         KLOG_ERROR(KSON_PARSE_VAL_ERROR,"INF");
                         return Node(0LL);
                     case 't': //如果是Bool True
@@ -492,7 +495,7 @@ namespace KF
                     case 'n':
                     case 'N': // nan → 非数；否则按 null 处理
                         if(MatchKw("nan"))
-                            return Node(KBIGNUM::BigNum(KBIGNUM::BigNum::State::Nan));
+                            return Node(KMATH::BigDec(KMATH::BigDec::State::Nan));
                         if(MatchKw("null"))
                             return Node();
                         KLOG_ERROR(KSON_PARSE_VAL_ERROR,"NULL");
@@ -500,7 +503,7 @@ namespace KF
                     default:
                         // -inf → 负无穷
                         if(c == CHAR_NEG && MatchKw("-inf"))
-                            return Node(KBIGNUM::BigNum(KBIGNUM::BigNum::State::NegInf));
+                            return Node(KMATH::BigDec(KMATH::BigDec::State::NegInf));
                         // 数字（含正负号、小数点开头）交给 ParseNum 处理
                         if (std::isdigit(static_cast<unsigned char>(c)) || c == CHAR_NEG || c == CHAR_POS)
                             return ParseNum();
@@ -722,7 +725,7 @@ namespace KF
         std::string NodePtr::Str()  const { return std::string(Resolve()->AsStr()); }
         long long   NodePtr::Int()  const { return Resolve()->AsInt(); }
         double      NodePtr::Dec()  const { return Resolve()->AsDec(); }
-        KBIGNUM::BigNum NodePtr::Big() const { return Resolve()->AsBig(); }
+        KMATH::BigDec NodePtr::Big() const { return Resolve()->AsBig(); }
         bool        NodePtr::Bool() const { return Resolve()->AsBool(); }
         std::size_t NodePtr::Size() const { return Resolve()->size(); }
         bool        NodePtr::Exists() const { return TryResolve() != nullptr; }

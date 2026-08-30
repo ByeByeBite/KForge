@@ -169,16 +169,16 @@ int main()
         else
         {
             // 关键字形式
-            KBIGNUM::BigNum inf     = in["inf"].Big();
-            KBIGNUM::BigNum neg_inf = in["neg_inf"].Big();
-            KBIGNUM::BigNum nan     = in["nan"].Big();
+            KMATH::BigDec inf     = in["inf"].Big();
+            KMATH::BigDec neg_inf = in["neg_inf"].Big();
+            KMATH::BigDec nan     = in["nan"].Big();
             kout << "  inf     关键字: " << inf.ToStr()     << "  (IsInf=" << inf.IsInf()     << ")" << std::endl;
             kout << "  -inf    关键字: " << neg_inf.ToStr() << "  (IsInf=" << neg_inf.IsInf() << ")" << std::endl;
             kout << "  nan     关键字: " << nan.ToStr()     << "  (IsNan=" << nan.IsNan()     << ")" << std::endl;
 
             // 字符串形式（大小写不敏感）
-            KBIGNUM::BigNum str_inf = in["str_inf"].Big();
-            KBIGNUM::BigNum str_nan = in["str_nan"].Big();
+            KMATH::BigDec str_inf = in["str_inf"].Big();
+            KMATH::BigDec str_nan = in["str_nan"].Big();
             kout << "  \"inf\"  字符串: " << str_inf.ToStr() << "  (IsInf=" << str_inf.IsInf() << ")" << std::endl;
             kout << "  \"NaN\"  字符串: " << str_nan.ToStr() << "  (IsNan=" << str_nan.IsNan() << ")" << std::endl;
 
@@ -197,7 +197,7 @@ int main()
         kout << "  Maze size: " << maze.size() << " rows x "
              << (maze.empty() ? 0 : maze[0].size()) << " cols" << std::endl;
         kout << "  Rendering (red=wall, green=start, blue=end):" << std::endl;
-        PrintMaze(maze);
+        Maze::Print(maze);
     }
 
     // ==================== 完成 ====================

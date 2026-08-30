@@ -1,5 +1,5 @@
 #include "base/KF.hpp"
-using namespace KBIGNUM;
+using namespace KMATH;
 int main()
 {
     KCLI::KBegin("KForge Utility", "Random big number generator","Git-1145","2026-08-13");

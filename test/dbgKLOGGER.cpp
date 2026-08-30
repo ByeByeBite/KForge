@@ -63,8 +63,8 @@ static Code LookupCode(const std::string& name)
         { "KSON_PARSE_OBJUE",       KSON_PARSE_OBJUE },
         { "KSON_PARSE_TRAIL",       KSON_PARSE_TRAIL },
         { "KSON_TYPE_MISMATCH",     KSON_TYPE_MISMATCH },
-        { "KBIGNUM_MULPOINT",       KBIGNUM_MULPOINT },
-        { "KBIGNUM_INVALIDCHAR",    KBIGNUM_INVALIDCHAR },
+        { "KMATH_MULPOINT",       KMATH_MULPOINT },
+        { "KMATH_INVALIDCHAR",    KMATH_INVALIDCHAR },
         { "UNKNOWN",                UNKNOWN },
     };
     auto it = m.find(name);
@@ -185,7 +185,7 @@ int main()
         kout << "  Module::KSON      = " << HexCode(Module::KSON)    << std::endl;
         kout << "  Module::KTIMER    = " << HexCode(Module::KTIMER)  << std::endl;
         kout << "  Module::KCLI      = " << HexCode(Module::KCLI)    << std::endl;
-        kout << "  Module::KBIGNUM   = " << HexCode(Module::KBIGNUM) << std::endl;
+        kout << "  Module::KMATH   = " << HexCode(Module::KMATH) << std::endl;
     }
 
     // ==================== 5. Color 颜色常量展示 ====================

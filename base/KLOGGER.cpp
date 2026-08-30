@@ -145,10 +145,10 @@ namespace KF
         const Code KSON_PARSE_OBJUE            = MakeCode(Module::KSON, LogLevel::Error,   0x01, 0x0B8);
         const Code KSON_PARSE_TRAIL            = MakeCode(Module::KSON, LogLevel::Warning, 0x02, 0x011);
         const Code KSON_TYPE_MISMATCH          = MakeCode(Module::KSON, LogLevel::Fatal,   0x01, 0x001);
-        // KBIGNUM 模块 (06)
-        const Code KBIGNUM_MULPOINT            = MakeCode(Module::KBIGNUM, LogLevel::Warning, 0x01, 0x002);
-        const Code KBIGNUM_INVALIDCHAR         = MakeCode(Module::KBIGNUM, LogLevel::Warning, 0x01, 0x004);
-        const Code KBIGNUM_DIVBYZERO           = MakeCode(Module::KBIGNUM, LogLevel::Error, 0x02, 0x003);
+        // KMATH 模块 (06)
+        const Code KMATH_MULPOINT            = MakeCode(Module::KMATH, LogLevel::Warning, 0x01, 0x002);
+        const Code KMATH_INVALIDCHAR         = MakeCode(Module::KMATH, LogLevel::Warning, 0x01, 0x004);
+        const Code KMATH_DIVBYZERO           = MakeCode(Module::KMATH, LogLevel::Error, 0x02, 0x003);
         // 未知模块 (00)
         const Code UNKNOWN = MakeCode(Module::Unknown, LogLevel::Fatal, 0x00, 0x000);
 
@@ -193,9 +193,9 @@ namespace KF
             {KSON_PARSE_OBJUE,              "KSON Parse object, unexpected char"},
             {KSON_PARSE_TRAIL,              "KSON Parse string, unexpected following char"},
             {KSON_TYPE_MISMATCH,            "KSON AsSth type mismatch"},
-            {KBIGNUM_MULPOINT,              "KBIGNUM Parse number, multiple decimal points"},
-            {KBIGNUM_INVALIDCHAR,           "KBIGNUM Parse number, The number contains unsupported non-Arabic digits"},
-            {KBIGNUM_DIVBYZERO,             "KBIGNUM divide by zero, result is +/-inf (0/0 is nan)"},
+            {KMATH_MULPOINT,              "KMATH Parse number, multiple decimal points"},
+        {KMATH_INVALIDCHAR,           "KMATH Parse number, The number contains unsupported non-Arabic digits"},
+        {KMATH_DIVBYZERO,             "KMATH divide by zero, result is +/-inf (0/0 is nan)"},
         };
     };
 }

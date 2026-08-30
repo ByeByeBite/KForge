@@ -1,4 +1,4 @@
-# KForge API Reference
+﻿# KForge API Reference
 
 > **最后更新**: 2026-08-13 | **标准**: C++17 | **编译器**: MSVC 19.44 (x64)
 > **头文件**: `base/KF.hpp`（唯一入口，`#include` 即可使用全部功能）
@@ -12,7 +12,7 @@
 - [KFIO 文件读写模块](#kfio-文件读写模块)
 - [KCLI 命令行交互模块](#kcli-命令行交互模块)
 - [KTIMER 计时器模块](#ktimer-计时器模块)
-- [KBIGNUM 大数运算模块](#kbignum-大数运算模块)
+- [KMATH 大数运算模块](#KMATH-大数运算模块)
 - [KSON 数据格式](#kson-数据格式)
 - [构建系统](#构建系统)
 - [错误码速查表](#错误码速查表)
@@ -28,7 +28,7 @@ KF
 ├── KSON         数据解析、节点树、路径访问
 ├── KFIO         文件读取
 ├── KTIMER       计时器管理
-├── KBIGNUM      大数运算
+├── KMATH      大数运算
 ├── KUTILITY     内部工具函数(不必了解)
 └── KCLI         命令行 UI、链式 I/O
 ```
@@ -67,7 +67,8 @@ enum class LogLevel : uint32_t { Info=1, Warning=2, Error=3, Fatal=4 };
 |--------|----|--------|----|
 | `Unknown` | `0x00` | `KSON` | `0x03` |
 | `Common` | `0x01` | `KTIMER` | `0x04` |
-| `KFIO` / `KBIGNUM` | `0x02` | `KCLI` | `0x05` |
+| `KFIO` | `0x02` | `KCLI` | `0x05` |
+| `KMATH` | `0x06` | | |
 
 ```cpp
 constexpr Code MakeCode(uint32_t module, LogLevel level, uint32_t type, uint32_t id) noexcept;
@@ -299,9 +300,9 @@ enum class TimerState { Running, Paused };
 
 ---
 
-## KBIGNUM 大数运算模块
+## KMATH 大数运算模块
 
-**源文件**: `KBIGNUM.cpp` | **命名空间**: `KF::KBIGNUM`
+**源文件**: `KMATH.cpp` | **命名空间**: `KF::KMATH`
 
 ### 存储模型
 
@@ -360,7 +361,7 @@ base = 10⁹，每个 `limb`（`uint32_t`）存储 9 位十进制数字。选择
 | `*` | 任一 NaN → NaN；`inf × 0` → NaN；`±inf × ±非零` → ±inf |
 | `/` | 任一 NaN → NaN；`inf / inf` → NaN；`±inf / 有限` → ±inf；`有限 / ±inf` → 0；`非零/0` → 报错 ±inf；`0/0` → 报错 NaN |
 | `%` | NaN/±inf 参与取模 → NaN；除零先报错再返回 NaN；余数符号跟随被除数 |
-| 除零 | 报 `KBIGNUM_DIVBYZERO` 错误，`0/0` → NaN，`非零/0` → ±inf |
+| 除零 | 报 `KMATH_DIVBYZERO` 错误，`0/0` → NaN，`非零/0` → ±inf |
 | `Pow` | 见下方「幂运算规则」 |
 
 ### 幂运算规则
@@ -429,7 +430,7 @@ std::string ToStr() const;                     // BigNum → 字符串
 | 绝对值运算 | `AbsMod` | 已实现（对齐小数位后做整数取余，余数非负） |
 | 用户运算符 | `operator+ - * / %` | 已实现（含 inf/nan 状态传播） |
 | 用户运算符 | `Pow` | 已实现（整数指数快速幂，负指数 a^{-n}=1/a^n，分数指数经 Root 开根，inf/nan 规则） |
-| 开根 | `Root` | 已实现（n 次方根 a^(1/n)，保留 9 位小数；负指数取倒数；偶数次根开负数 → nan） |
+| 开根 | `Root` | 已实现（返回 `BigCpx`：n 次方根 a^(1/n)，保留 9 位小数；负指数取倒数；负数开偶次方 → 纯虚数，如 `√-4 = "2i"`） |
 | 类型查询 | `type()` | 已实现（返回 `"nan"`/`"inf"`/`"-inf"`/`"int"`/`"dec"`） |
 | 算术类型混合 | `operator+ - * /` 模板 | 已实现（BigNum 可与所有算术类型 int/long/float/double 等的右值和变量互算，含反向 `5 + bn`、`2.5 * bn`） |
 | 比较运算符 | `operator< == != <= > >=` | 已实现（IEEE-754：NaN 参与比较恒为 false） |
@@ -437,14 +438,173 @@ std::string ToStr() const;                     // BigNum → 字符串
 
 **除法精度**：`AbsDivSchool` 保留 `keep` 位小数（默认 9），逐块（每块 9 位）二分试商，在 `[0, BASE-1]` 内二分查找最大商 d 使 `d*B <= 当前余数`，与手算长除法一致。
 
-> **设计约定**：自由函数（`AbsCmp` 等）声明放在 `BigNum` 类定义之前，需前向声明 `class BigNum;`。类内调用时省略 `KBIGNUM::` 前缀。`AbsAdd` 中使用 `(std::max)` 避免 Windows max 宏冲突。
+> **设计约定**：自由函数（`AbsCmp` 等）声明放在 `BigNum` 类定义之前，需前向声明 `class BigNum;`。类内调用时省略 `KMATH::` 前缀。`AbsAdd` 中使用 `(std::max)` 避免 Windows max 宏冲突。
 
 ```cpp
 #include "KF.hpp"
-using namespace KBIGNUM;
+using namespace KMATH;
 BigNum a("123456789012345678901234567890");
 BigNum b("-0.0001");
 kout << a << "\n" << b << "\n";  // 123456789012345678901234567890 / -0.0001
+```
+
+### 四大数类（BigInt / BigDec / BigFrc / BigCpx）
+
+大数模块由共享基类 `BigNum` 派生出的四类组成，按等级自动提升运算：
+
+| 类型 | 全称 | 说明 | 类型等级 |
+|------|------|------|----------|
+| `BigInt` | 大整数 | `scale` 恒为 0 的纯整数，构造自动取整截断小数 | 1 |
+| `BigDec` | 大小数 | 整数 + `scale` 位小数，最通用，绝大多数用法 | 2 |
+| `BigFrc<N,D>` | 分数 | 分子 N、分母 D，分母恒归一化为正，默认 `BigFrc<BigInt,BigInt>` | 3 |
+| `BigCpx<R,I>` | 复数 | 实部 R、虚部 I，默认 `BigCpx<BigDec,BigDec>` | 4 |
+
+**跨类型运算自动提升**：如 `BigInt + BigDec = BigDec`、`BigDec + BigFrc = BigFrc`、`BigFrc + BigCpx = BigCpx`（低等级自动转为高等级参与运算）。
+
+存储模型均为 `base = 10⁹` 小端 `vector<limb>`（`limb = uint32_t`），支持 `inf` / `-inf` / `nan` 特殊状态（IEEE-754 语义）。
+
+#### 构造
+
+| 构造 | 说明 | 示例 |
+|------|------|------|
+| 默认构造 | 零值 | `BigDec x;  // 0` |
+| 字符串构造 | 十进制串，大小写不敏感解析 `inf/-inf/nan`，容忍首尾空白 | `BigDec("3.14")` `BigInt("123456789012345678901234567890")` |
+| 算术类型模板 | int/long/unsigned/double/float 等自动构造（内部经字符串转换） | `BigDec(42)` `BigInt(2.7)  // 2` `BigDec(0.5f)` |
+| 特殊状态构造 | `State::Inf` / `NegInf` / `Nan` | `BigDec(BigDec::State::Inf) // "inf"` |
+| `BigInt(BigNum)` | 十进制 → 取整截断小数 | `BigInt(BigDec("3.9")) // 3` |
+| `BigDec(BigInt)` | 整数 → 小数（scale=0） | `BigDec(BigInt(5)) // 5` |
+| `BigFrc(num, den)` | 分子/分母；分母为 0 时置 0；分母为负自动归一化为正 | `BigFrc<>(1, 2) // "0.5"` |
+| `BigFrc(BigDec)` | 小数 → 精确分数 | `BigFrc<>(BigDec("0.25")) // 1/4` |
+| `BigCpx(re, im)` | 实部 + 虚部 | `BigCpx<>(1, 2) // "1+2i"` |
+| CTAD 自动推断 | 标量组件直接推断 int/double | `BigFrc(1,2)` `BigCpx(1,2)` |
+
+> `BigFrc<>` / `BigCpx<>` 即 `BigFrc<BigInt,BigInt>` / `BigCpx<BigDec,BigDec>`，与旧用法完全兼容。
+
+#### 成员 / 访问
+
+```cpp
+BigDec x("123.4500");
+x.limbs;      // vector<limb>：base=1e9 小端，limbs[0] 为最低 9 位
+x.isneg;      // bool 是否为负
+x.scale;      // size_t 小数位数（BigInt 恒为 0）
+x.state;      // State：Normal/Inf/NegInf/Nan
+x.IsInf();    // 是否 ±inf
+x.IsNan();    // 是否 nan
+x.IsNormal(); // 是否普通数值
+x.type();     // "nan" / "inf" / "-inf" / "int" / "dec"（BigFrc 返回 "frac"，BigCpx 返回 "cpx"）
+x.ToStr();    // 十进制字符串
+```
+
+#### 基本运算
+
+```cpp
+BigDec a("10"), b("4");
+a + b;   // 14
+a - b;   // 6
+a * b;   // 40
+a / b;   // 2.5（整除则整数，否则保留 9 位小数）
+a % b;   // 2（余数符号随被除数）
+-b;      // -10
++a;      // 10
+Pow(a, b);   // a^b：整数指数精确快速幂；分数指数经 Root 开根；负指数 1/a^|b|；支持 inf/nan 规则
+Root(a, b);  // a^(1/b)，返回 BigCpx；负数开偶次方返回纯虚数，如 Root("-4","2") == "2i"
+BigGcd(a, b); // 非负整数最大公约数（欧几里得）
+```
+
+**纯虚数 / 复数求值**：`Root` 返回 `BigCpx`，即其实数结果加 `"i"`：
+
+```cpp
+BigCpx<> z(3, 4);
+z.Conj();      // 3-4i
+z.Abs();       // 5（BigDec 模长）
+Pow(z, 2);     // -7+24i
+Abs(z);        // 5（自由函数，返回 BigDec）
+Conj(z);       // 3-4i（自由函数，返回 BigCpx）
+```
+
+**与原生算术类型混合**（四类都支持左右双向）：
+
+```cpp
+BigDec("5") + 3;   // 8
+BigDec("10") / 4;  // 2.5
+2.5 * BigDec("4"); // 10
+7 / BigDec("2");   // 3.5
+int i = 2; double d = 1.5;
+BigDec("3") + i;   // 5
+d + BigDec("2.5"); // 4
+```
+
+#### 比较与输出
+
+```cpp
+a == b;  a != b;  a < b;  a <= b;  a > b;  a >= b;
+// IEEE-754：NaN 与任何值（包括自身）比较恒为 false
+kout << a << std::endl;          // 调用 ToStr；inf → "inf"，nan → "nan"
+std::cout << a;                  // ostream operator<< 同样可用
+std::cin >> a;                   // istream operator>>（从字符串解析）
+```
+
+#### 类型转换
+
+| 转换 | 说明 |
+|------|------|
+| `x.ToStr()` | 十进制度字符串 |
+| `x.ToBigDec()` | 转小数（`BigFrc`/构造自它时常用），整除则整数否则 9 位小数 |
+| `ToBigDec(x)`（自由函数） | 任意数学类型 → `BigDec`，组件归一化专用 |
+| `BigFromDec<R>::from(d)` | `BigDec` → 指定组件类型 R（内部模板） |
+| `explicit operator long long()` | 范围内原生转换 |
+| `big.IsInLongLongRange()` | 是否在 long long 范围 |
+| `big.IsInDoubleRange()` | 是否在 double 范围 |
+
+#### 组件嵌套（BigFrc / BigCpx 的高级用法）
+
+N/D（或 R/I）可为四类数学类型**任意嵌套**，也可为原生算术类型（CTAD 自动推断）：
+
+```cpp
+using F = BigFrc<BigInt, BigInt>;
+BigCpx<F, F> z(BigFrc<BigInt,BigInt>(1,1), BigFrc<BigInt,BigInt>(2,1));
+(z * z).ToStr();            // "-3+4i"
+
+// 分数以分数为分子：(1/2) / 4 = 0.125
+BigFrc<F, BigInt> q(BigFrc<BigInt,BigInt>(1,2), BigInt(4));
+q.ToBigDec().ToStr();       // "0.125"
+
+// 复数实部为小数、虚部为分数：z = 3 + 0.5i
+BigCpx<BigDec, F> m(BigDec("3"), BigFrc<BigInt,BigInt>(1,2));
+(m * m).ToStr();            // "8.75+3i"
+
+// 标量组件（CTAD 自动推断 int/double）
+BigFrc(1, 2).ToBigDec().ToStr();  // "0.5"
+BigCpx(1, 2).ToStr();             // "1+2i"
+BigCpx(1, 2).Conj().ToStr();      // "1-2i"
+```
+
+#### 随机数生成
+
+```cpp
+BigInt  RandBigInt({iMin,iMax}, sign); // 随机整数：{位数下界,位数上界}；sign=0随机/1全正/2全负
+BigDec  RandBigDec({iMin,iMax},{dMin,dMax}, sign); // 随机小数：{整数位}、{小数位}、符号
+RandBigNum({iMin,iMax},{dMin,dMax},sign); // == RandBigDec 的通用别名
+// 示例
+BigDec r = RandBigDec({1,5}, {0,3}, 2);   // 5 位以内整数、0~3 位小数、全负数
+BigDec z = RandBigDec({0,0},{0,0},0);     // 恒为 0
+```
+
+#### 工具 / 规整
+
+```cpp
+Normalize("000012340.3221000000"); // "+12340.3221"：去小数点/前后导0，规整为 [+|-]d[.d]
+ScaleTo(BigDec("1.5"), 5);         // "1.50000"：对齐小数位（数值不变，要求 newScale >= scale）
+```
+
+#### 性能：大数乘法自动 NTT
+
+乘法在 limb 数 ≥ 48（约 432 位十进制）时自动切换到 **NTT（数论变换）+ 中国剩余定理**，复杂度从学校算法 O(n²) → O(n log n)，通过三期素数（998244353 / 1004535809 / 469762049，原根 3，最大变换长度 2²⁶）保证 100,000 位级大数乘法的正确与提速。调用者无需任何改动，`operator*` 自动触发。
+
+```cpp
+BigDec A("9"); BigDec B("9");
+for(int i = 0; i < 60; i++) { A = A * A; B = B * B; }  // 位宽增长到触发 NTT
+BigDec C = A * B;  // 自动走 NTT 路径
 ```
 
 ---
@@ -604,7 +764,7 @@ kout << color << std::endl;                     // 输出带颜色标签的多�
 | `KSON_PARSE_TRAIL` | `0x03202011` | Warning | 结尾有多余字符 |
 | `KSON_TYPE_MISMATCH` | `0x03401001` | Fatal | AsXxx 类型不匹配 |
 
-### KTIMER (04) / KCLI (05) / KBIGNUM (02) / 未知 (00)
+### KTIMER (04) / KCLI (05) / KMATH (06) / 未知 (00)
 
 | 常量 | 码值 | 等级 | 说明 |
 |------|------|------|------|
@@ -612,9 +772,9 @@ kout << color << std::endl;                     // 输出带颜色标签的多�
 | `KTIMER_ALREADY_EXISTS` | `0x04201002` | Warning | 计时器已存在 |
 | `KTIMER_STATE_ERROR` | `0x04201003` | Warning | 计时器状态不允许此操作 |
 | `KCLI_INPUT_INVALID` | `0x05201001` | Warning | 输入解析失败 |
-| `KBIGNUM_MULPOINT` | `0x02201002` | Warning | 多余的小数点 |
-| `KBIGNUM_INVALIDCHAR` | `0x02201004` | Warning | 数字中含非法字符 |
-| `KBIGNUM_DIVBYZERO` | `0x02302003` | Error | 除零：结果为 ±inf（0/0 为 nan） |
+| `KMATH_MULPOINT` | `0x06201002` | Warning | 多余的小数点 |
+| `KMATH_INVALIDCHAR` | `0x06201004` | Warning | 数字中含非法字符 |
+| `KMATH_DIVBYZERO` | `0x06302003` | Error | 除零：结果为 ±inf（0/0 为 nan） |
 | `UNKNOWN` | `0x00400000` | Fatal | 未知错误码 |
 
 ---
@@ -680,7 +840,7 @@ int main()
 | `dbgKLOGGER.cpp` | KLOGGER | KLOG_* 宏、错误码、MakeCode、Table、枚举、Color |
 | `dbgKCLI.cpp` | KCLI | kout/koutW/koutE/koutF 输出、颜色标签、kin 输入、KOptions 菜单 |
 | `dbgKTIMER.cpp` | KTIMER | AddTimer/PauseTimer/StartTimer/DeleteTimer/GetTimer/Print* |
-| `dbgKBIGNUM.cpp` | KBIGNUM | Normalize、ToBig+ToStr 往返、limbs/scale/isneg 验证、边界值、inf/nan 特殊状态（配置驱动） |
+| `dbgkmath.cpp` | KMATH | Normalize、ToBig+ToStr 往返、limbs/scale/isneg 验证、边界值、inf/nan 特殊状态、Root 虚数（配置驱动） |
 
 > Fatal 级别测试放在文件最后执行，触发后终止程序。所有测试脚本使用 `SECTION`/`CHECK`/`SHOW` 宏，配合 `kout`/`koutW`/`koutE`/`koutF` 彩色输出。
 

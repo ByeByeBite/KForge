@@ -1,23 +1,23 @@
 #include "base/KF.hpp"
 #include <sstream>
-using namespace KBIGNUM;
+using namespace KMATH;
 using namespace KCLI;
 using namespace KSON;
 using namespace KTIMER;
 
 /// =====================================================================
-/// 配置驱动型 BigNum 测试框架
-/// 检测单元从 config/test/cfg.kson 的 dbgKBIGNUM.bignum 读取，
+/// 配置驱动型 BigDec 测试框架
+/// 检测单元从 config/test/cfg.kson 的 dbgKMATH.bignum 读取，
 /// 通过 {green}[OK]{/} / {red}[FAIL]{/} 颜色直观区分结果。
 /// =====================================================================
 static int g_ok   = 0;   // 通过计数
 static int g_fail = 0;   // 失败计数
 
-/// 通用断言宏：expr 的 BigNum 结果 == expect 期望串
+/// 通用断言宏：expr 的 BigDec 结果 == expect 期望串
 #define CHECK_CFG(expr, exprStr, expectStr, section, idx)                                        \
     do {                                                                                          \
-        BigNum _got = (expr);                                                                     \
-        BigNum _exp(expectStr);                                                                   \
+        BigDec _got = (expr);                                                                     \
+        BigDec _exp(expectStr);                                                                   \
         bool _bothNan = _got.IsNan() && _exp.IsNan();                                             \
         if(_got == _exp || _bothNan) {                                                            \
             kout << "  " << section << "[" << idx << "] {green}[OK]{/}  " << exprStr << " = " << _got << "\n"; \
@@ -47,7 +47,7 @@ static int g_fail = 0;   // 失败计数
 /// 比较断言宏：A 与 B 的关系符号 == expectSign(1/-1/0)
 #define CHECK_CFG_CMP(aStr, bStr, expectSign, idx)                                                \
     do {                                                                                          \
-        BigNum _a(aStr); BigNum _b(bStr);                                                         \
+        BigDec _a(aStr); BigDec _b(bStr);                                                         \
         int _got = (_a < _b) ? -1 : ((_a > _b) ? 1 : 0);                                          \
         if(_got == (expectSign)) {                                                                \
             kout << "  cmp[" << idx << "] {green}[OK]{/}  (" << aStr << ") vs (" << bStr << ") = " << _got << "\n"; \
@@ -69,7 +69,7 @@ static void RunBinary(const G& g, const char* section)
         std::string a = g["A"][i].Auto();
         std::string b = g["B"][i].Auto();
         std::string e = g["E"][i].Auto();
-        BigNum A(a), B(b);
+        BigDec A(a), B(b);
         if(std::string(section) == "add")
             CHECK_CFG(A + B, a + " + " + b, e, section, i);
         else if(std::string(section) == "sub")
@@ -95,7 +95,7 @@ static void RunBinary(const G& g, const char* section)
 int main()
 {
     auto doc = ReadKsonFile("config/test/cfg.kson");
-    auto file = doc["dbgKBIGNUM"];
+    auto file = doc["dbgKMATH"];
     KBegin(file);
     auto bn = file["bignum"];
 
@@ -159,7 +159,7 @@ int main()
         for(size_t i = 0; i < n; i++)
         {
             std::string in = g["in"][i].Str();
-            CHECK_CFG_STR(BigNum(in).ToStr(), in + ".ToStr()", g["E"][i].Str(), "tostr", i);
+            CHECK_CFG_STR(BigDec(in).ToStr(), in + ".ToStr()", g["E"][i].Str(), "tostr", i);
         }
     }
 
@@ -175,7 +175,7 @@ int main()
             size_t sc = (size_t)g["scale"][i].Int();
             std::ostringstream lbl;
             lbl << "ScaleTo(" << in << "," << sc << ")";
-            CHECK_CFG_STR(ScaleTo(BigNum(in), sc).ToStr(), lbl.str(), g["E"][i].Str(), "scaleto", i);
+            CHECK_CFG_STR(ScaleTo(BigDec(in), sc).ToStr(), lbl.str(), g["E"][i].Str(), "scaleto", i);
         }
     }
 
@@ -195,61 +195,61 @@ int main()
         };
         for(size_t i = 0; i < (sizeof(cases)/sizeof(cases[0])); i++)
         {
-            // 用 BigNum 求值：按 cases[i].expr 中的表达式手写（仅覆盖已实现运算）
-            BigNum r;
+            // 用 BigDec 求值：按 cases[i].expr 中的表达式手写（仅覆盖已实现运算）
+            BigDec r;
             if(std::string(cases[i].expr) == std::string("7.5+2.5-3"))
-                r = BigNum("7.5") + BigNum("2.5") - BigNum("3");
+                r = BigDec("7.5") + BigDec("2.5") - BigDec("3");
             else if(std::string(cases[i].expr) == std::string("(2+3)*4"))
-                r = (BigNum("2") + BigNum("3")) * BigNum("4");
+                r = (BigDec("2") + BigDec("3")) * BigDec("4");
             else if(std::string(cases[i].expr) == std::string("2*3*4"))
-                r = BigNum("2") * BigNum("3") * BigNum("4");
+                r = BigDec("2") * BigDec("3") * BigDec("4");
             else if(std::string(cases[i].expr) == std::string("10-10"))
-                r = BigNum("10") - BigNum("10");
+                r = BigDec("10") - BigDec("10");
             else if(std::string(cases[i].expr) == std::string("2.5*2*2"))
-                r = BigNum("2.5") * BigNum("2") * BigNum("2");
+                r = BigDec("2.5") * BigDec("2") * BigDec("2");
             else if(std::string(cases[i].expr) == std::string("0.5+0.5+0.5"))
-                r = BigNum("0.5") + BigNum("0.5") + BigNum("0.5");
+                r = BigDec("0.5") + BigDec("0.5") + BigDec("0.5");
             else if(std::string(cases[i].expr) == std::string("-2*-3"))
-                r = BigNum("-2") * BigNum("-3");
+                r = BigDec("-2") * BigDec("-3");
             else if(std::string(cases[i].expr) == std::string("1000000000*1000000000"))
-                r = BigNum("1000000000") * BigNum("1000000000");
+                r = BigDec("1000000000") * BigDec("1000000000");
             CHECK_CFG(r, cases[i].expr, cases[i].expect, "ident", i);
         }
     }
 
-    // ==================== 8. RandBigNum 随机数（往返 + 范围 + 符号） ====================
-    kout << "\n== 8. RandBigNum（往返）==\n";
+    // ==================== 8. RandBigDec 随机数（往返 + 范围 + 符号） ====================
+    kout << "\n== 8. RandBigDec（往返）==\n";
     for(size_t i = 0; i < 10; i++)
     {
         size_t iMin = i % 5, iMax = iMin + 1 + (i * 7) % 30;
         size_t dMin = i % 3, dMax = dMin + (i % 4);
         int sign = (int)(i % 3); // 0随机 / 1全正 / 2全负
-        BigNum r = RandBigNum({iMin,iMax},{dMin,dMax},sign);
+        BigDec r = RandBigDec({iMin,iMax},{dMin,dMax},sign);
         std::string s = r.ToStr();
         // 符号校验
         bool signOk;
-        if(sign == 1)      signOk = (r >= BigNum("0"));                                   // 全正: 0或正
-        else if(sign == 2) signOk = (r == BigNum("0")) || (r < BigNum("0"));              // 全负: 0或负
+        if(sign == 1)      signOk = (r >= BigDec("0"));                                   // 全正: 0或正
+        else if(sign == 2) signOk = (r == BigDec("0")) || (r < BigDec("0"));              // 全负: 0或负
         else               signOk = true;                                                  // 随机不校验符号
-        bool ok = (BigNum(s) == r) && signOk;
-        if(!ok) { kout << "  RandBigNum[" << i << "] {red}[FAIL]{/}  " << s << "\n"; ++g_fail; }
-        else    { kout << "  RandBigNum[" << i << "] {green}[OK]{/}  " << s << "\n"; ++g_ok; }
+        bool ok = (BigDec(s) == r) && signOk;
+        if(!ok) { kout << "  RandBigDec[" << i << "] {red}[FAIL]{/}  " << s << "\n"; ++g_fail; }
+        else    { kout << "  RandBigDec[" << i << "] {green}[OK]{/}  " << s << "\n"; ++g_ok; }
     }
     // 全负数校验（sign=2 时若非0必须为负）
     {
         bool allNeg = true;
         for(size_t i = 0; i < 20; i++)
         {
-            BigNum r = RandBigNum({1,5},{0,3},2);
-            if(r != BigNum("0") && !(r < BigNum("0"))) allNeg = false;
+            BigDec r = RandBigDec({1,5},{0,3},2);
+            if(r != BigDec("0") && !(r < BigDec("0"))) allNeg = false;
         }
-        if(allNeg) { kout << "  RandBigNum sign=2 全负 {green}[OK]{/}\n"; ++g_ok; }
-        else       { kout << "  RandBigNum sign=2 全负 {red}[FAIL]{/}\n"; ++g_fail; }
+        if(allNeg) { kout << "  RandBigDec sign=2 全负 {green}[OK]{/}\n"; ++g_ok; }
+        else       { kout << "  RandBigDec sign=2 全负 {red}[FAIL]{/}\n"; ++g_fail; }
     }
     {
-        BigNum z = RandBigNum({0,0},{0,0},0);
-        if(z == BigNum("0")) { kout << "  RandBigNum(0,0) {green}[OK]{/}\n"; ++g_ok; }
-        else                 { kout << "  RandBigNum(0,0) {red}[FAIL]{/}  got " << z << "\n"; ++g_fail; }
+        BigDec z = RandBigDec({0,0},{0,0},0);
+        if(z == BigDec("0")) { kout << "  RandBigDec(0,0) {green}[OK]{/}\n"; ++g_ok; }
+        else                 { kout << "  RandBigDec(0,0) {red}[FAIL]{/}  got " << z << "\n"; ++g_fail; }
     }
 
     // ==================== 9. istream/ostream ====================
@@ -260,28 +260,28 @@ int main()
         for(auto& s : inputs)
         {
             std::istringstream iss(s);
-            BigNum v;
+            BigDec v;
             iss >> v;
-            if(v == BigNum(s)) { kout << "  \"" << s << "\" {green}[OK]{/}  -> " << v << "\n"; ++g_ok; }
+            if(v == BigDec(s)) { kout << "  \"" << s << "\" {green}[OK]{/}  -> " << v << "\n"; ++g_ok; }
             else               { kout << "  \"" << s << "\" {red}[FAIL]{/}  -> " << v << "\n"; ++g_fail; }
         }
         std::ostringstream oss;
-        oss << (BigNum("-1.5") * BigNum("2")) << " " << (BigNum("1.5") + BigNum("1.50"))
-            << " " << (BigNum("0") * BigNum("5")) << " " << BigNum("1000000000")
-            << " " << (BigNum("0.001") * BigNum("0.001"));
+        oss << (BigDec("-1.5") * BigDec("2")) << " " << (BigDec("1.5") + BigDec("1.50"))
+            << " " << (BigDec("0") * BigDec("5")) << " " << BigDec("1000000000")
+            << " " << (BigDec("0.001") * BigDec("0.001"));
         std::string s = oss.str();
         if(s == "-3 3 0 1000000000 0.000001") { kout << "  ostream 输出 {green}[OK]{/}\n"; ++g_ok; }
         else                                  { kout << "  ostream 输出 {red}[FAIL]{/}  got \"" << s << "\"\n"; ++g_fail; }
     }
 
-    // ==================== 10. Abs 系列独立函数（含大数） ====================
-    kout << "\n== 10. AbsAdd / AbsSub / AbsMul ==\n";
-    CHECK_CFG(AbsAdd(BigNum("-123456789012345678901.5"), BigNum("0.5")),
-              "AbsAdd(-123456789012345678901.5, 0.5)", "123456789012345678902", "absadd", 0);
-    CHECK_CFG(AbsSub(BigNum("1000000000"), BigNum("0.000000001")),
-              "AbsSub(1000000000, 0.000000001)", "999999999.999999999", "abssub", 0);
-    CHECK_CFG(AbsMul(BigNum("999999999.5"), BigNum("999999999.5")),
-              "AbsMul(999999999.5, 999999999.5)", "999999999000000000.25", "absmul", 0);
+    // ==================== 10. 大数量级运算（对照校验） ====================
+    kout << "\n== 10. 大数量级运算 ==\n";
+    CHECK_CFG(BigDec("-123456789012345678901.5") + BigDec("0.5"),
+              "(-123456789012345678901.5) + 0.5", "-123456789012345678901", "absadd", 0);
+    CHECK_CFG(BigDec("1000000000") - BigDec("0.000000001"),
+              "1000000000 - 0.000000001", "999999999.999999999", "abssub", 0);
+    CHECK_CFG(BigDec("999999999.5") * BigDec("999999999.5"),
+              "999999999.5 * 999999999.5", "999999999000000000.25", "absmul", 0);
 
     // ==================== 11. inf/nan 特殊状态（配置驱动） ====================
     kout << "\n== 11. inf/nan 特殊状态 ==\n";
@@ -289,7 +289,7 @@ int main()
     {
         auto g = bn["inf_nan"];
 
-        // 11.1 构造 / ToStr（大小写不敏感，KSON 关键字自动解析为 BigNum 状态）
+        // 11.1 构造 / ToStr（大小写不敏感，KSON 关键字自动解析为 BigDec 状态）
         kout << "  11.1 构造/ToStr\n";
         if(g["tostr"].Exists())
         {
@@ -297,9 +297,9 @@ int main()
             size_t n = T["in"].size();
             for(size_t i = 0; i < n; i++)
             {
-                BigNum v = BigNum(T["in"][i].Auto());
+                BigDec v = BigDec(T["in"][i].Auto());
                 std::string got = v.ToStr();
-                std::string exp = BigNum(T["E"][i].Auto()).ToStr();
+                std::string exp = BigDec(T["E"][i].Auto()).ToStr();
                 if(got == exp) { kout << "    tostr[" << i << "] {green}[OK]{/}  " << got << "\n"; ++g_ok; }
                 else { kout << "    tostr[" << i << "] {red}[FAIL]{/}  got \"" << got << "\" , expect \"" << exp << "\"\n"; ++g_fail; }
             }
@@ -325,7 +325,7 @@ int main()
             };
             for(size_t i = 0; i < (sizeof(cases)/sizeof(cases[0])); i++)
             {
-                std::string got = BigNum(cases[i].in).ToStr();
+                std::string got = BigDec(cases[i].in).ToStr();
                 if(got == cases[i].exp) { kout << "    \"" << cases[i].in << "\" -> {green}[OK]{/}  " << got << "\n"; ++g_ok; }
                 else { kout << "    \"" << cases[i].in << "\" -> {red}[FAIL]{/}  got \"" << got << "\" , expect \"" << cases[i].exp << "\"\n"; ++g_fail; }
             }
@@ -339,8 +339,8 @@ int main()
             size_t n = C["A"].size();
             for(size_t i = 0; i < n; i++)
             {
-                BigNum a = BigNum(C["A"][i].Auto());
-                BigNum b = BigNum(C["B"][i].Auto());
+                BigDec a = BigDec(C["A"][i].Auto());
+                BigDec b = BigDec(C["B"][i].Auto());
                 int got = (a < b) ? -1 : ((a > b) ? 1 : 0);
                 long long exp = C["E"][i].Int();
                 if(got == exp) { kout << "    cmp[" << i << "] {green}[OK]{/}  " << a << " vs " << b << " = " << got << "\n"; ++g_ok; }
@@ -360,11 +360,11 @@ int main()
             size_t n = S["A"].size();
             for(size_t i = 0; i < n; i++)
             {
-                BigNum a = BigNum(S["A"][i].Auto());
-                BigNum b = BigNum(S["B"][i].Auto());
-                BigNum r = (o == 0) ? (a + b) : ((o == 1) ? (a - b) : (a * b));
+                BigDec a = BigDec(S["A"][i].Auto());
+                BigDec b = BigDec(S["B"][i].Auto());
+                BigDec r = (o == 0) ? (a + b) : ((o == 1) ? (a - b) : (a * b));
                 std::string got = r.ToStr();
-                std::string exp = BigNum(S["E"][i].Auto()).ToStr();
+                std::string exp = BigDec(S["E"][i].Auto()).ToStr();
                 if(got == exp) { kout << "    " << sec << "[" << i << "] {green}[OK]{/}  " << a << " " << sym[o] << " " << b << " = " << got << "\n"; ++g_ok; }
                 else { kout << "    " << sec << "[" << i << "] {red}[FAIL]{/}  " << a << " " << sym[o] << " " << b << " = " << got << " , expect " << exp << "\n"; ++g_fail; }
             }
@@ -385,14 +385,14 @@ int main()
         size_t n = g["in"].size();
         for(size_t i = 0; i < n; i++)
         {
-            // 用 Auto()：引号字符串 "inf"/"-inf"/"nan" 会被 KSON 自动转为 BigNum 节点，
-            // Str() 会触发类型不匹配崩溃，Auto() 对字符串与 BigNum 节点均返回文本
+            // 用 Auto()：引号字符串 "inf"/"-inf"/"nan" 会被 KSON 自动转为 BigDec 节点，
+            // Str() 会触发类型不匹配崩溃，Auto() 对字符串与 BigDec 节点均返回文本
             std::string in = g["in"][i].Auto();
-            CHECK_CFG_STR(BigNum(in).type(), "BigNum(" + in + ").type()", g["E"][i].Auto(), "type", i);
+            CHECK_CFG_STR(BigDec(in).type(), "BigDec(" + in + ").type()", g["E"][i].Auto(), "type", i);
         }
     }
 
-    // ==================== 14. Root 开根（配置驱动） ====================
+    // ==================== 14. Root 开根（配置驱动，返回 BigCpx） ====================
     kout << "\n== 14. Root 开根 ==\n";
     GUARD_SECTION(bn, "root", "root")
     {
@@ -403,40 +403,65 @@ int main()
             std::string a = g["A"][i].Auto();
             std::string b = g["B"][i].Auto();
             std::string e = g["E"][i].Auto();
-            CHECK_CFG(Root(BigNum(a), BigNum(b)), "Root(" + a + ", " + b + ")", e, "root", i);
+            // Root 返回 BigCpx，用 ToStr() 比较（实数 → 正常串；负数偶次 → 纯虚数如 "2i"）
+            CHECK_CFG_STR(Root(BigDec(a), BigDec(b)).ToStr(), "Root(" + a + ", " + b + ")", e, "root", i);
         }
     }
 
     // ==================== 15. 与其他算术类型运算（重载） ====================
     kout << "\n== 15. 与其他算术类型运算 ==\n";
-    // BigNum op 算术类型（右值）
-    CHECK_CFG(BigNum("5") + 3,      "5 + 3(int)",        "8",   "arith", 0);
-    CHECK_CFG(BigNum("5.5") - 2,    "5.5 - 2(int)",      "3.5", "arith", 1);
-    CHECK_CFG(BigNum("5") * 2.5,    "5 * 2.5(double)",   "12.5","arith", 2);
-    CHECK_CFG(BigNum("10") / 4,     "10 / 4(int)",       "2.5", "arith", 3);
-    CHECK_CFG(BigNum("-5") + 2,     "-5 + 2(int)",       "-3",  "arith", 4);
-    // 算术类型 op BigNum（右值反向）
-    CHECK_CFG(3 + BigNum("5"),      "3(int) + 5",        "8",   "arith", 5);
-    CHECK_CFG(10 - BigNum("3.5"),   "10(int) - 3.5",     "6.5", "arith", 6);
-    CHECK_CFG(2.5 * BigNum("4"),    "2.5(double) * 4",   "10",  "arith", 7);
-    CHECK_CFG(7 / BigNum("2"),      "7(int) / 2",        "3.5", "arith", 8);
+    // BigDec op 算术类型（右值）
+    CHECK_CFG(BigDec("5") + 3,      "5 + 3(int)",        "8",   "arith", 0);
+    CHECK_CFG(BigDec("5.5") - 2,    "5.5 - 2(int)",      "3.5", "arith", 1);
+    CHECK_CFG(BigDec("5") * 2.5,    "5 * 2.5(double)",   "12.5","arith", 2);
+    CHECK_CFG(BigDec("10") / 4,     "10 / 4(int)",       "2.5", "arith", 3);
+    CHECK_CFG(BigDec("-5") + 2,     "-5 + 2(int)",       "-3",  "arith", 4);
+    // 算术类型 op BigDec（右值反向）
+    CHECK_CFG(3 + BigDec("5"),      "3(int) + 5",        "8",   "arith", 5);
+    CHECK_CFG(10 - BigDec("3.5"),   "10(int) - 3.5",     "6.5", "arith", 6);
+    CHECK_CFG(2.5 * BigDec("4"),    "2.5(double) * 4",   "10",  "arith", 7);
+    CHECK_CFG(7 / BigDec("2"),      "7(int) / 2",        "3.5", "arith", 8);
     // 变量形式
     {
         int i = 2; double d = 1.5; long L = 100; float f = 0.5f;
-        CHECK_CFG(BigNum("3") + i,   "3 + i(int=2)",      "5",   "arith", 9);
-        CHECK_CFG(d + BigNum("2.5"), "d(double=1.5)+2.5", "4",   "arith", 10);
-        CHECK_CFG(L - BigNum("99"),  "L(long=100)-99",    "1",   "arith", 11);
-        CHECK_CFG(BigNum("10") * f,  "10 * f(float=0.5)", "5",   "arith", 12);
-        CHECK_CFG(BigNum("100") / i, "100 / i(int=2)",    "50",  "arith", 13);
+        CHECK_CFG(BigDec("3") + i,   "3 + i(int=2)",      "5",   "arith", 9);
+        CHECK_CFG(d + BigDec("2.5"), "d(double=1.5)+2.5", "4",   "arith", 10);
+        CHECK_CFG(L - BigDec("99"),  "L(long=100)-99",    "1",   "arith", 11);
+        CHECK_CFG(BigDec("10") * f,  "10 * f(float=0.5)", "5",   "arith", 12);
+        CHECK_CFG(BigDec("100") / i, "100 / i(int=2)",    "50",  "arith", 13);
+    }
+
+    // ==================== 16. BigFrc/BigCpx 组件可嵌套任意数学类型 ====================
+    kout << "\n== 16. BigFrc/BigCpx 组件嵌套 ==\n";
+    {
+        // (a) 复数以分数为实/虚部：z = 1+2i，平方 = -3+4i
+        using F = BigFrc<BigInt, BigInt>;
+        BigCpx<F, F> z(BigFrc<BigInt, BigInt>(BigInt(1), BigInt(1)),
+                       BigFrc<BigInt, BigInt>(BigInt(2), BigInt(1)));
+        CHECK_CFG_STR((z * z).ToStr(), "(1+2i)^2", "-3+4i", "nested", 0);
+
+        // (b) 分数以分数为分子：(1/2)/4 = 0.125
+        BigFrc<F, BigInt> q(BigFrc<BigInt, BigInt>(BigInt(1), BigInt(2)), BigInt(4));
+        CHECK_CFG_STR(q.ToBigDec().ToStr(), "(1/2)/4", "0.125", "nested", 1);
+
+        // (c) 复数实部为小数、虚部为分数：z = 3+0.5i，平方 = 8.75+3i
+        BigCpx<BigDec, F> m(BigDec("3"), BigFrc<BigInt, BigInt>(BigInt(1), BigInt(2)));
+        CHECK_CFG_STR((m * m).ToStr(), "(3+0.5i)^2", "8.75+3i", "nested", 2);
+
+        // (d) 标量组件（CTAD 自动推断 int/double 等算术类型）
+        CHECK_CFG_STR(BigFrc(1, 2).ToBigDec().ToStr(), "BigFrc(1,2).ToBigDec()", "0.5", "nested", 3);
+        CHECK_CFG_STR(BigFrc(3, 4).ToBigDec().ToStr(), "BigFrc(3,4).ToBigDec()", "0.75", "nested", 4);
+        CHECK_CFG_STR(BigCpx(1, 2).ToStr(), "BigCpx(1,2)", "1+2i", "nested", 5);
+        CHECK_CFG_STR(BigCpx(1, 2).Conj().ToStr(), "conj(BigCpx(1,2))", "1-2i", "nested", 6);
     }
 
     // ==================== 结论 ====================
     kout << "\n----------------------------------------\n";
     kout << "  {green}[OK]{/} " << g_ok << " 项通过\n";
     if(g_fail == 0)
-        kout << "\n{green}[ALL PASS] BigNum 配置驱动测试通过{/}\n";
+        kout << "\n{green}[ALL PASS] BigDec 配置驱动测试通过{/}\n";
     else
-        kout << "\n{red}[" << g_fail << " FAIL] BigNum 配置驱动测试有失败项{/}\n";
+        kout << "\n{red}[" << g_fail << " FAIL] BigDec 配置驱动测试有失败项{/}\n";
     KEnd();
     return g_fail > 0 ? 1 : 0;
 }

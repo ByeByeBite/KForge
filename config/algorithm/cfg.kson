@@ -91,5 +91,53 @@
                 "date": "2026-08-22"
             }
         }
+    },
+    "graph":
+    {
+        "tree":
+        {
+            "BST":
+            {
+                "meta":
+                {
+                    "cmdtitle": "二叉搜索树",
+                    "title": "Binary Search Tree",
+                    "description": "A Binary Search Tree is a node-based data structure\n each node has at most two children.\n{green}left subtree {skyblue}< node {skyblue}< right subtree.{/}\nSearch/Insert/Delete are {yellow}O(log n){/} on average.",
+                    "author": "ByeByeBite",
+                    "date": "2026-08-28"
+                },
+                "default_size": 12,
+                "default_data_len": 3,
+                "time_complexity":
+                {
+                    "search": "{skyblue}O(log n){/}{red} WORST O(n){/}",
+                    "insert": "{skyblue}O(log n){/}{red} WORST O(n){/}",
+                    "delete": "{skyblue}O(log n){/}{red} WORST O(n){/}"
+                }
+            }
+        },
+        "linked_list":
+        {
+            "singly":
+            {
+                "meta":
+                {
+
+                    "cmdtitle": "单向链表",
+                    "title": "Singly Linked List",
+                    "description": "A singly linked list is a data structure that consists of a sequence of nodes\n each containing {yellow}a value and a reference to the next node in the sequence.{/}",
+                    "author": "ByeByeBite",
+                    "date": "2026-08-26"
+                },
+                "default_size": 10,
+                "default_data_len": 4,
+                "time_complexity":
+                {
+                    "search": "{skyblue}O(n){/}",
+                    "insert": "{skyblue}O(n){/}",
+                    "delete": "{skyblue}O(n){/}"
+                }
+            }
+        }
     }
 }

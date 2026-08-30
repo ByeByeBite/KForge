@@ -1,19 +1,19 @@
 #include "base/KF.hpp"
 using namespace std;
-using namespace KBIGNUM;
+using namespace KMATH;
 using namespace KCLI;
 using namespace KSON;
 using namespace KTIMER;
 
 size_t n;
-vector<BigNum> arr;
+vector<BigDec> arr;
 long long printSleep = 0; // 每次打印后的停顿(ms)，来自 GLOBAL["ArrPrintSleep"]
 size_t printEvery = 1;   // 每打印一次间隔的比较数（用户输入），0=不停顿
 
 long long BarMax = 50;
 
 /// @brief 计算每个位置的序号（1=最小，n=最大）
-vector<size_t> ComputeRanks(const vector<BigNum>& a)
+vector<size_t> ComputeRanks(const vector<BigDec>& a)
 {
     vector<size_t> ranks(n);
     for (size_t i = 0; i < n; i++)
@@ -25,7 +25,7 @@ vector<size_t> ComputeRanks(const vector<BigNum>& a)
     return ranks;
 }
 
-void BubbleSort(vector<BigNum>& a, vector<size_t> ranks, size_t rule)
+void BubbleSort(vector<BigDec>& a, vector<size_t> ranks, size_t rule)
 {
     AddTimer("BUBBLE SORT", TimeUnit::us);
 
@@ -92,14 +92,14 @@ int main()
         kout << "sign (0=random 1=positive 2=negative): ";
         kin >> sign;
         for (size_t i = 0; i < n; i++)
-            arr.push_back(RandBigNum({iMin, iMax}, {dMin, dMax}, sign));
+            arr.push_back(RandBigDec({iMin, iMax}, {dMin, dMax}, sign));
     }
     else
     {
         kout << "input array: \n";
         for (size_t i = 0; i < n; i++)
         {
-            BigNum x;
+            BigDec x;
             kin >> x;
             arr.push_back(x);
         }

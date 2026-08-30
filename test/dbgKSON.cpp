@@ -480,7 +480,7 @@ int main()
 
         // NodePtr::AsBig() 方法 (经 NodePtr 代理，路径解析后取大数)
         kout << "  >> NodePtr::AsBig() 方法" << std::endl;
-        KBIGNUM::BigNum bigval = bn[i1].Big();
+        KMATH::BigDec bigval = bn[i1].Big();
         SHOW("NodePtr::AsBig()", bigval.ToStr());
     }
 
@@ -490,7 +490,7 @@ int main()
         kson ec = doc["error_cases"];
         CHECK(ec.Exists(), "error_cases 节点存在");
 
-        // --- normalize_errors: 字符串数组，对每个元素调用 KBIGNUM::Normalize() ---
+        // --- normalize_errors: 字符串数组，对每个元素调用 KMATH::Normalize() ---
         kout << "  >> normalize_errors 数组 → Normalize()" << std::endl;
         kson ne = ec["normalize_errors"];
         const Node* neRoot = ne.TryResolve();
@@ -504,7 +504,7 @@ int main()
                 if (elem && elem->IsString())
                 {
                     std::string raw = std::string(elem->AsStr());
-                    std::string normalized = KBIGNUM::Normalize(raw);
+                    std::string normalized = KMATH::Normalize(raw);
                     kout << "    [" << i << "] raw=\"" << raw
                          << "\" → normalized=\"" << normalized << "\"" << std::endl;
                 }
@@ -606,17 +606,17 @@ int main()
 
         // 关键字 inf / -inf / nan
         kout << "  >> 关键字 inf / -inf / nan" << std::endl;
-        KBIGNUM::BigNum inf = inf_nan["inf"].Big();
-        KBIGNUM::BigNum neg_inf = inf_nan["neg_inf"].Big();
-        KBIGNUM::BigNum nan = inf_nan["nan"].Big();
+        KMATH::BigDec inf = inf_nan["inf"].Big();
+        KMATH::BigDec neg_inf = inf_nan["neg_inf"].Big();
+        KMATH::BigDec nan = inf_nan["nan"].Big();
         CHECK(inf.IsInf() && !inf.isneg, "inf 关键字 → IsInf && !isneg");
         CHECK(neg_inf.IsInf() && neg_inf.isneg, "-inf 关键字 → IsInf && isneg");
         CHECK(nan.IsNan(), "nan 关键字 → IsNan");
 
         // 引号字符串 "inf" / "NaN"（大小写不敏感，自动转为 BigNum 特殊状态）
         kout << "  >> 引号字符串 \"inf\" / \"NaN\"" << std::endl;
-        KBIGNUM::BigNum str_inf = inf_nan["str_inf"].Big();
-        KBIGNUM::BigNum str_nan = inf_nan["str_nan"].Big();
+        KMATH::BigDec str_inf = inf_nan["str_inf"].Big();
+        KMATH::BigDec str_nan = inf_nan["str_nan"].Big();
         CHECK(str_inf.IsInf() && !str_inf.isneg, "字符串 \"inf\" → IsInf");
         CHECK(str_nan.IsNan(), "字符串 \"NaN\" → IsNan");
 

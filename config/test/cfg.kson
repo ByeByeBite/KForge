@@ -142,14 +142,14 @@
         "dup_key": "second"
     },
 
-    # ==================== dbgKBIGNUM：大数运算模块 ====================
-    "dbgKBIGNUM":
+    # ==================== dbgKMATH：大数运算模块 ====================
+    "dbgKMATH":
     {
         "meta":
         {
-            "cmdtitle": "KBIGNUM测试",
-            "title": "dbgKBIGNUM 模块测试",
-            "description": "KBIGNUM 大数运算模块全功能测试",
+            "cmdtitle": "KMATH测试",
+            "title": "dbgKMATH 模块测试",
+            "description": "KMATH 大数运算模块全功能测试",
             "author": "Git-1145",
             "date": "2026-08-14"
         },
@@ -303,12 +303,12 @@
             },
             "root":
             {
-                # Root(a, n) = a^(1/n)，保留 9 位小数；偶数次根开负数 → nan
+                # Root(a, n) = a^(1/n)，保留 9 位小数；返回 BigCpx，负数开偶次方 → 纯虚数（如 √-4 = "2i"）
                 "A": ["9",  "27", "16", "2",  "0.5", "100", "8",  "-8",  "-4",  "2",
                       "1",  "0",  "inf", "4", "0.25"],
                 "B": ["2",  "3",  "4",  "2",  "2",   "2",   "3",  "3",   "2",   "-2",
                       "5",  "3",  "2",  "0.5", "2"],
-                "E": ["3",  "3",  "2",  "1.414213562", "0.707106781", "10", "2",  "-2", "nan", "0.707106781",
+                "E": ["3",  "3",  "2",  "1.414213562", "0.707106781", "10", "2",  "-2", "2i", "0.707106781",
                       "1",  "0",  "inf", "16", "0.5"]
             }
         }
@@ -334,7 +334,7 @@
             "KFIO_FILE_OPEN_FAIL", "KFIO_FILE_READ_FAIL",
             "KSON_PARSE_STRE", "KSON_PARSE_MULPOINT", "KSON_TYPE_MISMATCH",
             "KCLI_INPUT_INVALID", "KTIMER_NOT_FOUND",
-            "KBIGNUM_MULPOINT", "KBIGNUM_INVALIDCHAR",
+            "KMATH_MULPOINT", "KMATH_INVALIDCHAR",
             "UNKNOWN"
         ],
 
@@ -349,8 +349,8 @@
             { "code": "KSON_PARSE_STR_NOEND",   "msg": "no closing quote" },
             { "code": "KCLI_INPUT_INVALID",     "msg": "bad input" },
             { "code": "KSON_PARSE_VAL_ERROR",   "msg": "simulated KSON value error" },
-            { "code": "KBIGNUM_MULPOINT",       "msg": "multiple dots in bignum" },
-            { "code": "KBIGNUM_INVALIDCHAR",    "msg": "invalid char in bignum" }
+            { "code": "KMATH_MULPOINT",       "msg": "multiple dots in bignum" },
+            { "code": "KMATH_INVALIDCHAR",    "msg": "invalid char in bignum" }
         ]
     },
 
