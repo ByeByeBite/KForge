@@ -1,7 +1,6 @@
 ﻿#pragma once
 #include "KFCommon.hpp"
 #include "KLOGGER.hpp"
-#include "KMATH.hpp"
 namespace KF
 {
     namespace KSON
@@ -10,8 +9,7 @@ namespace KF
         enum class NodeType // 节点
         {
             kInt, // Integer 整数
-            kDec, // Decimal 浮点数
-            kBig, // BigNum 大数
+            kDec, // Decimal 浮点数（含 inf/-inf/nan）
             kStr, // String 字符串
             kBool, // Boolean 布尔值
             kArr, // Array 数组
@@ -26,10 +24,6 @@ namespace KF
                 explicit Node(bool val) noexcept;
                 explicit Node(long long val) noexcept;
                 explicit Node(double val) noexcept;
-                explicit Node(KMATH::BigDec val) noexcept;
-                explicit Node(KMATH::BigInt val) noexcept;   // 转 BigDec 存储
-                explicit Node(KMATH::BigFrc<> val) noexcept;   // 转 BigDec 存储
-                explicit Node(KMATH::BigCpx<> val) noexcept;   // 取实部转 BigDec 存储
                 explicit Node(std::string val) noexcept;
                 explicit Node(std::vector<Node> val);
                 explicit Node(std::vector<std::pair<std::string,Node>> val);
@@ -40,8 +34,7 @@ namespace KF
                 bool IsBool()    const noexcept;
                 bool IsInt()     const noexcept;
                 bool IsDec()     const noexcept;
-                bool IsBig()     const noexcept;
-                bool IsNumber()  const noexcept;  // int 或 dec 或 big
+                bool IsNumber()  const noexcept;  // int 或 dec
                 bool IsString()  const noexcept;
                 bool IsArray()   const noexcept;
                 bool IsObject()  const noexcept;
@@ -50,7 +43,6 @@ namespace KF
                 bool             AsBool()   const;
                 long long        AsInt()    const;
                 double           AsDec() const;
-                const KMATH::BigDec& AsBig() const;
                 std::string_view AsStr() const;
                 const std::vector<Node>&     AsArr()  const;
                 const std::vector<std::pair<std::string,Node>>&     AsObj() const;
@@ -71,7 +63,6 @@ namespace KF
                     using storage_t = std::variant< 
                         std::monostate,
                         bool,std::string,double,long long,
-                        KMATH::BigDec,
                         arr_t,obj_t>;
 
                     storage_t Data;
@@ -105,7 +96,6 @@ namespace KF
                 std::string Str() const;
                 long long Int() const;
                 double Dec() const;
-                KMATH::BigDec Big() const;
                 bool Bool() const;
                 std::size_t Size() const;
                 std::size_t size() const;  // 小写别名，等价于 Size()，方便 arr.size() 风格

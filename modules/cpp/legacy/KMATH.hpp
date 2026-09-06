@@ -61,6 +61,8 @@ namespace KF
         inline BigDec toBigDec(const BigInt& x);
         template<class N, class D> BigDec toBigDec(const BigFrc<N,D>& x);
         template<class R, class I> BigDec toBigDec(const BigCpx<R,I>& x);
+        template<typename T, std::enable_if_t<std::is_arithmetic_v<T>, int>>
+        inline BigDec toBigDec(const T& x);
         /// @brief BigDec → 组件类型 R 的转换工具模板（BigFromDec<R>::from）
         template<class R, class Enable = void> struct BigFromDec;
 

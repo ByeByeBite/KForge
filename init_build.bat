@@ -1,151 +1,171 @@
 @echo off
-
-REM --setup mode: configure MSVC env in CALLER's environment.
-REM IMPORTANT: must run BEFORE setlocal, otherwise vcvarsall.bat's
-REM INCLUDE/LIB/PATH would be discarded when this script exits.
-if "%~1"=="--setup" goto :msvc_setup
-
 setlocal enabledelayedexpansion
 
 REM ============================================
-REM init_build.bat  -  KForge Build Generator
+REM init_build.bat  -  KForge C++20 Modules Build
 REM
-REM   1. Setup MSVC environment
-REM   2. Precompile base/*.cpp -> base/obj/*.obj -> base/KF.lib
-REM   3. Scan study/ + test/ for directories containing .cpp files
-REM   4. Generate build.bat in each
+REM   Framework (modules/cpp/*.ixx) + test/ are built via CMake.
+REM   Build output: build-msvc\ (objs) and <root>\Release\*.exe.
 REM
-REM   No args needed. Run from project root.
-REM   --setup : MSVC env setup only (called by generated build.bat)
+REM   Modes:
+REM     (no arg)      Configure + build module library (.ixx) + generate build.bat scripts.
+REM                   init_build 集始化：编译模块库；不编译 cpp，不改动 Release.
+REM     --config      Configure only (build-msvc + VS generator)
+REM     --build       Explicit: build all modules + test exes (only when requested)
+REM     --setup       MSVC environment only (for legacy manual cl)
+REM     --ide         Generate build-ide\compile_commands.json only (VS Code IntelliSense).
+REM                   No compilation, no changes to modules/ or Release.
 REM ============================================
 
 set "ROOT=%~dp0"
 set "ROOT=%ROOT:~0,-1%"
-set "BASE=%ROOT%\base"
-set "BASE_OBJ=%BASE%\obj"
-set "KFLIB=%BASE%\KF.lib"
+
+if "%~1"=="--setup"   goto :msvc_setup
+if "%~1"=="--config"  goto :do_configure
+if "%~1"=="--build"   goto :do_build
+if "%~1"=="--ide"     goto :do_ide
 
 echo ============================================
-echo   KForge - Init Build
+echo   KForge - Init Build (C++20 Modules / CMake)
 echo ============================================
 echo.
 
-REM [1/4] MSVC setup
-echo [1/4] MSVC environment setup ...
-call :msvc_setup
+REM init_build 负责配置 CMake并编译模块库 (.ixx → KF.lib/.ifc) 完成初始化，
+REM 再生成各目录 build.bat；build.bat 只编译并链接程序 (.cpp)。
+
+echo [1/4] Configure CMake (build-msvc) ...
+call :do_configure
 if errorlevel 1 goto :err
 echo       Done.
 echo.
-
-REM [2/4] Precompile base/KF.lib
-echo [2/4] Precompiling base\obj + KF.lib ...
-call :precompile_base
+echo [2/4] Build module library (init_build 初始化/编译模块) ...
+call :do_build_modules
 if errorlevel 1 goto :err
 echo       Done.
 echo.
-
-REM [3/4] Clean old scripts
-echo [3/4] Cleaning old build.bat ...
-for /r "%ROOT%\study" %%b in (build.bat) do if exist "%%b" del "%%b"
-for /r "%ROOT%\test"  %%b in (build.bat) do if exist "%%b" del "%%b"
+echo [3/4] Generate test\build.bat ...
+call :write_test_build_bat
 echo       Done.
 echo.
-
-REM [4/4] Generate scripts
-echo [4/4] Generating build.bat ...
+echo [4/4] Generate study\ build.bat (self-contained) ...
 call :gen_scripts "%ROOT%\study"
-call :gen_scripts "%ROOT%\test"
 echo       Done.
 echo.
-
 echo ============================================
-echo   All build scripts generated.
-echo   Run build.bat in any study\ subdirectory.
+echo   Done. init_build 已编译模块库 (KF.lib / .ifc)，
+echo   未编译任何 cpp，Release 均未被改动。
+echo   Run <dir>\build.bat to compile & link programs.
 echo ============================================
 pause
 goto :end
 
-REM ========== :msvc_setup ==========
+REM ========== :do_configure ==========
+:do_configure
+where cmake >nul 2>nul
+if errorlevel 1 (
+    echo [ERROR] cmake not found in PATH
+    exit /b 1
+)
+cmake -S "%ROOT%" -B "%ROOT%\build-msvc" -G "Visual Studio 17 2022" -A x64
+exit /b %errorlevel%
+
+REM ========== :do_build_modules - 编译模块库 (init_build 初始化) ==========
+:do_build_modules
+if not exist "%ROOT%\build-msvc\CMakeCache.txt" (
+    echo [ERROR] build-msvc not configured. Run init_build.bat --config first.
+    exit /b 1
+)
+cmake --build "%ROOT%\build-msvc" --config Release --target kf kmath
+exit /b %errorlevel%
+
+REM ========== :do_build ==========
+:do_build
+if not exist "%ROOT%\build-msvc\CMakeCache.txt" (
+    echo [ERROR] build-msvc not configured. Run init_build.bat --config first.
+    exit /b 1
+)
+cmake --build "%ROOT%\build-msvc" --config Release
+exit /b %errorlevel%
+
+REM ========== :do_ide - generate compile_commands.json for IntelliSense ==========
+REM   仅做 Ninja 配置以产出 build-ide\compile_commands.json，
+REM   不编译任何 cpp，不写入/删除 modules/ 或 Release。
+:do_ide
+call :msvc_setup
+if errorlevel 1 exit /b 1
+set "NINJA=%VSROOT%\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe"
+if not exist "%NINJA%" (
+    for /r "%VSROOT%" %%f in (ninja.exe) do if exist "%%f" set "NINJA=%%f"
+)
+if not exist "%NINJA%" (
+    echo [ERROR] ninja not found. Install VS 2022 CMake/Ninja component.
+    exit /b 1
+)
+if exist "%ROOT%\build-ide" rd /s /q "%ROOT%\build-ide"
+cmake -S "%ROOT%" -B "%ROOT%\build-ide" -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=cl -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY -DCMAKE_MAKE_PROGRAM="%NINJA%"
+if errorlevel 1 exit /b 1
+echo.
+echo   IntelliSense compile database: %ROOT%\build-ide\compile_commands.json
+echo   (仅生成数据库，未编译 cpp)
+exit /b 0
+
+REM ========== :write_test_build_bat ==========
+:write_test_build_bat
+set "out=%ROOT%\test\build.bat"
+setlocal disabledelayedexpansion
+> "%out%" echo @echo off
+>>"%out%" echo setlocal
+>>"%out%" echo REM Auto-generated by init_build.bat - self-contained; builds all test exes via CMake
+>>"%out%" echo for %%%%I in ("%%~dp0..") do set "ROOT=%%%%~fI"
+>>"%out%" echo.
+>>"%out%" echo if not exist "%%ROOT%%\build-msvc\CMakeCache.txt" (
+>>"%out%" echo     cmake -S "%%ROOT%%" -B "%%ROOT%%\build-msvc" -G "Visual Studio 17 2022" -A x64
+>>"%out%" echo     if errorlevel 1 goto :err
+>>"%out%" echo )
+>>"%out%" echo cmake --build "%%ROOT%%\build-msvc" --config Release
+>>"%out%" echo if errorlevel 1 goto :err
+>>"%out%" echo echo.
+>>"%out%" echo echo [DONE] Test executables: "%%ROOT%%\test\Release\"
+>>"%out%" echo pause
+>>"%out%" echo goto :end
+>>"%out%" echo.
+>>"%out%" echo :err
+>>"%out%" echo echo [ERROR] Build failed.
+>>"%out%" echo pause
+>>"%out%" echo exit /b 1
+>>"%out%" echo.
+>>"%out%" echo :end
+>>"%out%" echo endlocal
+>>"%out%" echo exit /b 0
+endlocal
+exit /b 0
+
+REM ========== :msvc_setup - MSVC env only (vswhere, no hardcoded paths) ==========
 :msvc_setup
 set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
 if not exist "%VSWHERE%" set "VSWHERE=%ProgramFiles%\Microsoft Visual Studio\Installer\vswhere.exe"
 if not exist "%VSWHERE%" (
     echo [ERROR] vswhere.exe not found - install VS 2022
-    goto :err
+    exit /b 1
 )
 for /f "usebackq delims=" %%i in (`"%VSWHERE%" -latest -property installationPath`) do set "VSROOT=%%i"
 if not defined VSROOT (
-    echo [ERROR] VS installation not found
-    goto :err
-)
-call "%VSROOT%\VC\Auxiliary\Build\vcvarsall.bat" x64 >nul 2>nul
-if errorlevel 1 (
-    echo [ERROR] vcvarsall.bat failed
-    goto :err
-)
-set "SDKROOT=%ProgramFiles(x86)%\Windows Kits\10"
-if not exist "%SDKROOT%\Include" set "SDKROOT=%ProgramFiles%\Windows Kits\10"
-for /f "usebackq delims=" %%s in (`dir "%SDKROOT%\Include" /b /ad /o-n 2^>nul`) do (
-    set "SDKVER=%%s"
-    goto :sdkdone
-)
-:sdkdone
-if defined SDKVER (
-    if exist "%SDKROOT%\Include\%SDKVER%\ucrt" (
-        set "INCLUDE=%SDKROOT%\Include\%SDKVER%\ucrt;%SDKROOT%\Include\%SDKVER%\um;%SDKROOT%\Include\%SDKVER%\shared;%INCLUDE%"
-        set "LIB=%SDKROOT%\Lib\%SDKVER%\ucrt\x64;%SDKROOT%\Lib\%SDKVER%\um\x64;%LIB%"
-    )
-)
-exit /b 0
-
-REM ========== :precompile_base ==========
-:precompile_base
-set "PCFLAGS=/O2 /std:c++17 /utf-8 /EHsc /MD /I%ROOT%"
-if not exist "%BASE_OBJ%" mkdir "%BASE_OBJ%"
-
-set "recompiled=0"
-for %%f in ("%BASE%\*.cpp") do (
-    set "src=%%f"
-    set "obj=%BASE_OBJ%\%%~nf.obj"
-    set "need=1"
-    if exist "!obj!" (
-        for %%a in ("!src!") do for %%b in ("!obj!") do (
-            if "%%~ta" LEQ "%%~tb" set "need=0"
-        )
-    )
-    if "!need!"=="1" (
-        echo   [COMPILE] %%~nxf
-        cl /c !PCFLAGS! "%%f" /Fo:"!obj!"
-        if errorlevel 1 (
-            echo [ERROR] Failed to compile: %%~nxf
-            exit /b 1
-        )
-        set "recompiled=1"
-    ) else (
-        echo   [SKIP] %%~nxf
-    )
-)
-
-if "!recompiled!"=="1" goto :build_lib
-if not exist "%KFLIB%" goto :build_lib
-echo   [SKIP] KF.lib up-to-date
-exit /b 0
-
-:build_lib
-echo   [LIB] Creating KF.lib ...
-set "LIBOBJS="
-for %%f in ("%BASE_OBJ%\*.obj") do set "LIBOBJS=!LIBOBJS! %%f"
-lib /out:"%KFLIB%" !LIBOBJS! >nul 2>nul
-if errorlevel 1 (
-    echo [ERROR] Failed to create KF.lib
+    echo [ERROR] VS installation not found (vswhere)
     exit /b 1
 )
-echo   [LIB] KF.lib created.
-exit /b 0
+set "VCVARS=%VSROOT%\VC\Auxiliary\Build\vcvarsall.bat"
+if not exist "%VCVARS%" (
+    echo [ERROR] vcvarsall.bat not found: %VCVARS%
+    exit /b 1
+)
+call "%VCVARS%" x64 >nul 2>nul
+exit /b %errorlevel%
 
-REM ========== :gen_scripts - recursive ==========
+REM ========== :gen_scripts - recursive (active dirs only) ==========
 :gen_scripts
 set "dir=%~1"
+echo !dir! | findstr /i "\\legacy" >nul 2>nul
+if not errorlevel 1 exit /b 0
 set "has=0"
 for %%f in ("%dir%\*.cpp") do set "has=1"
 if "!has!"=="1" (
@@ -155,13 +175,12 @@ if "!has!"=="1" (
 for /d %%d in ("%dir%\*") do call :gen_scripts "%%d"
 exit /b 0
 
-REM ========== :write_build_bat ==========
+REM ========== :write_build_bat - plain cl (no KF.lib) ==========
 REM   %1 = target directory
 :write_build_bat
 set "dir=%~1"
 set "rel=%dir%"
 set "rel=!rel:%ROOT%\=!"
-rem Compute relative path from target dir to root
 set "to_root="
 :rel_loop
 if "!rel!"=="" goto :rel_end
@@ -176,15 +195,13 @@ setlocal disabledelayedexpansion
 > "%out%" echo @echo off
 >>"%out%" echo setlocal enabledelayedexpansion
 >>"%out%" echo.
->>"%out%" echo REM Auto-generated by init_build.bat - Selective build
+>>"%out%" echo REM Auto-generated by init_build.bat - self-contained (no KF, no init_build)
 >>"%out%" echo set "DIR=%%~dp0"
 >>"%out%" echo set "DIR=!DIR:~0,-1!"
->>"%out%" echo set "KFLIB=%%~dp0%to_root%base\KF.lib"
->>"%out%" echo set "CXXFLAGS=/O2 /std:c++17 /utf-8 /EHsc /MD /I%%~dp0%to_root%"
+>>"%out%" echo call :msvc
+>>"%out%" echo if errorlevel 1 exit /b 1
+>>"%out%" echo set "CXXFLAGS=/O2 /std:c++20 /utf-8 /EHsc /MD"
 >>"%out%" echo set "LINKFLAGS=/OPT:REF /OPT:ICF /SUBSYSTEM:CONSOLE"
->>"%out%" echo.
->>"%out%" echo REM Setup MSVC environment if not already set
->>"%out%" echo if not defined INCLUDE call "%%~dp0%to_root%init_build.bat" --setup
 >>"%out%" echo.
 >>"%out%" echo set "filecount=0"
 >>"%out%" echo for %%%%f in ("!DIR!\*.cpp") do (
@@ -199,25 +216,18 @@ setlocal disabledelayedexpansion
 >>"%out%" echo     exit /b 0
 >>"%out%" echo )
 >>"%out%" echo.
->>"%out%" echo echo +----------------------------------------+
->>"%out%" echo echo   KForge Build  -  %rel%
->>"%out%" echo echo +----------------------------------------+
->>"%out%" echo echo.
 >>"%out%" echo echo   Files in this directory:
 >>"%out%" echo for /l %%%%i in (1,1,!filecount!) do echo     %%%%i. !file_%%%%i!
->>"%out%" echo echo.
 >>"%out%" echo set "choice="
 >>"%out%" echo set /p "choice=  Select numbers (e.g. 1 3) or Enter for all: "
 >>"%out%" echo.
 >>"%out%" echo if not exist "!DIR!\Release" mkdir "!DIR!\Release"
->>"%out%" echo.
 >>"%out%" echo set "compileall=1"
 >>"%out%" echo if defined choice (
 >>"%out%" echo     set "sel=!choice:,= !"
 >>"%out%" echo     set "seltrimmed=!sel: =!"
 >>"%out%" echo     if not "!seltrimmed!"=="" set "compileall=0"
 >>"%out%" echo )
->>"%out%" echo.
 >>"%out%" echo if "!compileall!"=="1" (
 >>"%out%" echo     for /l %%%%i in (1,1,!filecount!) do (
 >>"%out%" echo         call :compile_one "!filepath_%%%%i!" "!file_%%%%i:~0,-4!"
@@ -234,21 +244,38 @@ setlocal disabledelayedexpansion
 >>"%out%" echo     )
 >>"%out%" echo )
 >>"%out%" echo.
->>"%out%" echo echo.
 >>"%out%" echo echo   [DONE] Build complete. Output: !DIR!\Release\
 >>"%out%" echo pause
 >>"%out%" echo goto :build_end
 >>"%out%" echo.
+>>"%out%" echo :msvc
+>>"%out%" echo set "VSWHERE=%%ProgramFiles(x86)%%\Microsoft Visual Studio\Installer\vswhere.exe"
+>>"%out%" echo if not exist "%%VSWHERE%%" set "VSWHERE=%%ProgramFiles%%\Microsoft Visual Studio\Installer\vswhere.exe"
+>>"%out%" echo if not exist "%%VSWHERE%%" goto :msvc_err
+>>"%out%" echo for /f "usebackq delims=" %%%%i in (`"%%VSWHERE%%" -latest -property installationPath`) do set "VSROOT=%%%%i"
+>>"%out%" echo if not defined VSROOT goto :msvc_err
+>>"%out%" echo set "VCVARS=%%VSROOT%%\VC\Auxiliary\Build\vcvarsall.bat"
+>>"%out%" echo if not exist "%%VCVARS%%" goto :msvc_err
+>>"%out%" echo call "%%VCVARS%%" x64 ^>nul 2^>nul
+>>"%out%" echo if errorlevel 1 goto :msvc_err
+>>"%out%" echo exit /b 0
+>>"%out%" echo :msvc_err
+>>"%out%" echo echo [ERROR] MSVC (vswhere.exe / vcvarsall.bat) not found
+>>"%out%" echo exit /b 1
+>>"%out%" echo.
 >>"%out%" echo :compile_one
 >>"%out%" echo set "cf=%%~1"
 >>"%out%" echo set "cn=%%~2"
+>>"%out%" echo REM 先删旧文件再编译
+>>"%out%" echo del /q "!DIR!\Release\!cn!.exe" 2^>nul
+>>"%out%" echo del /q "!DIR!\Release\!cn!.obj" 2^>nul
 >>"%out%" echo echo   [BUILD] !cn!.cpp
 >>"%out%" echo cl /c !CXXFLAGS! "!cf!" /Fo:"!DIR!\Release\!cn!.obj"
 >>"%out%" echo if errorlevel 1 (
 >>"%out%" echo     echo   [FAIL] !cn!.cpp - compile error
 >>"%out%" echo     exit /b 1
 >>"%out%" echo )
->>"%out%" echo link !LINKFLAGS! "!KFLIB!" "!DIR!\Release\!cn!.obj" /out:"!DIR!\Release\!cn!.exe"
+>>"%out%" echo link !LINKFLAGS! "!DIR!\Release\!cn!.obj" /out:"!DIR!\Release\!cn!.exe"
 >>"%out%" echo if errorlevel 1 (
 >>"%out%" echo     echo   [FAIL] !cn!.cpp - link error
 >>"%out%" echo     exit /b 1

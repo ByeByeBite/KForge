@@ -15,20 +15,18 @@
  *   9. 从文件读取配置的 KOptions
  *  10. kpause / KEnd
  */
-#include "base/KF.hpp"
-using namespace KFIO;
-using namespace KSON;
-using namespace KLOG;
-using namespace KCLI;
+import kf;
+#include <iostream>
+#include <string>
 
 // ==================== 测试辅助宏 ====================
-#define SECTION(name) kout << Color::Bold << "\n--- " << name << " ---" << Color::Reset << std::endl
+#define SECTION(name) kout << Bold << "\n--- " << name << " ---" << Reset << std::endl
 
 int main()
 {
     kson doc = ReadKsonFile("config/test/cfg.kson");
     kson main = doc["dbgKCLI"];
-    KBegin(main);
+    KBegin(main["meta"].Vec());
     // ==================== 1. kout 链式输出 ====================
     SECTION("1. kout 链式输出");
     {
@@ -65,26 +63,26 @@ int main()
     SECTION("5. 临时换色");
     {
         kout << "  默认天蓝色输出" << std::endl;
-        kout << Color::Red << "  临时红色" << Color::Reset << std::endl;
+        kout << Red << "  临时红色" << Reset << std::endl;
         kout << "  恢复天蓝色" << std::endl;
-        kout << Color::Green << "  临时绿色" << Color::Reset << std::endl;
-        kout << Color::Bold << "  加粗文本" << Color::Reset << std::endl;
-        kout << Color::Magenta << "  临时紫红" << Color::Reset << std::endl;
+        kout << Green << "  临时绿色" << Reset << std::endl;
+        kout << Bold << "  加粗文本" << Reset << std::endl;
+        kout << Magenta << "  临时紫红" << Reset << std::endl;
     }
 
     // ==================== 6. Color 常量展示 ====================
     SECTION("6. Color 常量展示");
     {
-        kout << Color::Red         << "  Red"          << Color::Reset << std::endl;
-        kout << Color::Green       << "  Green"        << Color::Reset << std::endl;
-        kout << Color::Yellow      << "  Yellow"       << Color::Reset << std::endl;
-        kout << Color::Blue        << "  Blue"         << Color::Reset << std::endl;
-        kout << Color::Magenta     << "  Magenta"      << Color::Reset << std::endl;
-        kout << Color::Cyan        << "  Cyan"         << Color::Reset << std::endl;
-        kout << Color::LightYellow << "  LightYellow"  << Color::Reset << std::endl;
-        kout << Color::Orange      << "  Orange"       << Color::Reset << std::endl;
-        kout << Color::SkyBlue     << "  SkyBlue (kout 默认)" << Color::Reset << std::endl;
-        kout << Color::Bold        << "  Bold"         << Color::Reset << std::endl << std::endl;
+        kout << Red         << "  Red"          << Reset << std::endl;
+        kout << Green       << "  Green"        << Reset << std::endl;
+        kout << Yellow      << "  Yellow"       << Reset << std::endl;
+        kout << Blue        << "  Blue"         << Reset << std::endl;
+        kout << Magenta     << "  Magenta"      << Reset << std::endl;
+        kout << Cyan        << "  Cyan"         << Reset << std::endl;
+        kout << LightYellow << "  LightYellow"  << Reset << std::endl;
+        kout << Orange      << "  Orange"       << Reset << std::endl;
+        kout << SkyBlue     << "  SkyBlue (kout 默认)" << Reset << std::endl;
+        kout << Bold        << "  Bold"         << Reset << std::endl << std::endl;
         kout << doc["dbgKSON"]["escapes"]["color"].Str() << std::endl;
     }
 
@@ -108,7 +106,7 @@ int main()
         bool b;
         kin >> b;
 
-        kout << Color::Bold << "  --- 输入结果 ---" << Color::Reset << std::endl;
+        kout << Bold << "  --- 输入结果 ---" << Reset << std::endl;
         kout << "  int=" << i << ", dec=" << d << ", str=" << s << ", bool=" << b << std::endl;
     }
 
@@ -138,7 +136,7 @@ int main()
             "\"title\": \"请选择操作\","
             "\"options\": [\"选项 A\", \"选项 B\", \"选项 C\", \"返回\"]"
         ));
-        size_t choice = KOptions(menu);
+        size_t choice = KOptions(menu["options"].Vec(), menu["title"].Auto());
         kout << "  你选择了: [" << choice << "] " << menu["options"][choice].Auto() << std::endl;
     }
 
@@ -146,7 +144,7 @@ int main()
     SECTION("9. 从文件读取配置的 KOptions");
     {
         kson menu = main["KOption"];
-        size_t choice = KOptions(menu);
+        size_t choice = KOptions(menu["options"].Vec(), menu["title"].Auto());
         kout << "  你选择了: [" << choice << "] " << menu["options"][choice].Auto() << std::endl;
     }
 
@@ -168,24 +166,24 @@ int main()
         }
         else
         {
-            // 关键字形式
-            KMATH::BigDec inf     = in["inf"].Big();
-            KMATH::BigDec neg_inf = in["neg_inf"].Big();
-            KMATH::BigDec nan     = in["nan"].Big();
-            kout << "  inf     关键字: " << inf.ToStr()     << "  (IsInf=" << inf.IsInf()     << ")" << std::endl;
-            kout << "  -inf    关键字: " << neg_inf.ToStr() << "  (IsInf=" << neg_inf.IsInf() << ")" << std::endl;
-            kout << "  nan     关键字: " << nan.ToStr()     << "  (IsNan=" << nan.IsNan()     << ")" << std::endl;
+            // 关键字形式（存储为 double 特殊值）
+            double inf     = in["inf"].Dec();
+            double neg_inf = in["neg_inf"].Dec();
+            double nan     = in["nan"].Dec();
+            kout << "  inf     关键字: " << inf     << "  (IsInf=" << std::isinf(inf)     << ")" << std::endl;
+            kout << "  -inf    关键字: " << neg_inf << "  (IsInf=" << std::isinf(neg_inf) << ")" << std::endl;
+            kout << "  nan     关键字: " << nan     << "  (IsNan=" << std::isnan(nan)     << ")" << std::endl;
 
             // 字符串形式（大小写不敏感）
-            KMATH::BigDec str_inf = in["str_inf"].Big();
-            KMATH::BigDec str_nan = in["str_nan"].Big();
-            kout << "  \"inf\"  字符串: " << str_inf.ToStr() << "  (IsInf=" << str_inf.IsInf() << ")" << std::endl;
-            kout << "  \"NaN\"  字符串: " << str_nan.ToStr() << "  (IsNan=" << str_nan.IsNan() << ")" << std::endl;
+            double str_inf = in["str_inf"].Dec();
+            double str_nan = in["str_nan"].Dec();
+            kout << "  \"inf\"  字符串: " << str_inf << "  (IsInf=" << std::isinf(str_inf) << ")" << std::endl;
+            kout << "  \"NaN\"  字符串: " << str_nan << "  (IsNan=" << std::isnan(str_nan) << ")" << std::endl;
 
             // 数组中的 inf / -inf / nan
             kson arr = in["array"];
             for(size_t i = 0; i < arr.Size(); i++)
-                kout << "  array[" << i << "] = " << arr[i].Big().ToStr() << std::endl;
+                kout << "  array[" << i << "] = " << arr[i].Dec() << std::endl;
         }
     }
 
@@ -201,7 +199,7 @@ int main()
     }
 
     // ==================== 完成 ====================
-    kout << Color::Bold << "\n=== dbgKCLI 所有测试完成 ===" << Color::Reset << std::endl;
+    kout << Bold << "\n=== dbgKCLI 所有测试完成 ===" << Reset << std::endl;
 
     // KEnd: 暂停后退出
     KEnd();

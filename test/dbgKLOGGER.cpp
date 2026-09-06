@@ -9,15 +9,23 @@
  * 若配置键缺失则输出 {red}[FAIL]{/} 并继续，不会退出程序。
  */
 
-#include "base/KF.hpp"
+import kf;
+#include <iostream>
+#include <sstream>
+#include <iomanip>
+#include <string>
+#include <string_view>
+#include <cstdint>
 #include <unordered_map>
-using namespace KFIO;
-using namespace KSON;
-using namespace KLOG;
-using namespace KCLI;
+
+// 宏不随模块导出，需在消费 TU 内就地定义（包装底层 Info/Warning/Error/Fatal）
+#define KLOG_INFO(code, extra)   Info(code, extra, __FILE__, __LINE__, __FUNCTION__)
+#define KLOG_WARNING(code, extra) Warning(code, extra, __FILE__, __LINE__, __FUNCTION__)
+#define KLOG_ERROR(code, extra)  Error(code, extra, __FILE__, __LINE__, __FUNCTION__)
+#define KLOG_FATAL(code, extra)  Fatal(code, extra, __FILE__, __LINE__, __FUNCTION__)
 
 // ==================== 测试辅助 ====================
-#define SECTION(name) kout << Color::Bold << "\n--- " << name << " ---" << Color::Reset << std::endl
+#define SECTION(name) kout << Bold << "\n--- " << name << " ---" << Reset << std::endl
 
 static int g_ok = 0, g_fail = 0;
 
@@ -38,8 +46,8 @@ static Code LookupCode(const std::string& name)
         { "TEST_WARN",              TEST_WARN },
         { "TEST_ERROR",             TEST_ERROR },
         { "TEST_FATAL",             TEST_FATAL },
-        { "KFIO_FILE_OPEN_FAIL",    KFIO_FILE_OPEN_FAIL },
-        { "KFIO_FILE_READ_FAIL",    KFIO_FILE_READ_FAIL },
+        { "KFIO_FILE_OPEN_FAIL",    KSON_FILE_OPEN_FAIL },
+        { "KFIO_FILE_READ_FAIL",    KSON_FILE_READ_FAIL },
         { "KCLI_INPUT_INVALID",     KCLI_INPUT_INVALID },
         { "KTIMER_NOT_FOUND",       KTIMER_NOT_FOUND },
         { "KTIMER_ALREADY_EXISTS",  KTIMER_ALREADY_EXISTS },
@@ -63,8 +71,8 @@ static Code LookupCode(const std::string& name)
         { "KSON_PARSE_OBJUE",       KSON_PARSE_OBJUE },
         { "KSON_PARSE_TRAIL",       KSON_PARSE_TRAIL },
         { "KSON_TYPE_MISMATCH",     KSON_TYPE_MISMATCH },
-        { "KMATH_MULPOINT",       KMATH_MULPOINT },
-        { "KMATH_INVALIDCHAR",    KMATH_INVALIDCHAR },
+        { "KMATH_MULPOINT",       KBIGNUM_MULPOINT },
+        { "KMATH_INVALIDCHAR",    KBIGNUM_INVALIDCHAR },
         { "UNKNOWN",                UNKNOWN },
     };
     auto it = m.find(name);
@@ -94,7 +102,8 @@ int main()
 {
     auto doc = ReadKsonFile("config/test/cfg.kson");
     auto logger = doc["dbgKLOGGER"];
-    KBegin(logger["meta"].Exists() ? logger["meta"] : doc["dbgKSON"]["meta"]);
+    kson meta = logger["meta"].Exists() ? logger["meta"] : doc["dbgKSON"]["meta"];
+    KBegin(meta.Vec());
 
     // ==================== 1. codes 错误码展示 + Table 查询 ====================
     SECTION("1. codes 错误码 + Table 码表查询");
@@ -164,7 +173,7 @@ int main()
     // ==================== 3. MakeCode 错误码组装 ====================
     SECTION("3. MakeCode 错误码组装");
     {
-        Code manual = MakeCode(Module::KSON, LogLevel::Error, 0x01, 0x001);
+        Code manual = MakeCode(0x03, LogLevel::Error, 0x01, 0x001); // 0x03 = KSON 模块号（内部常量已私有）
         kout << "  MakeCode(KSON, Error, 0x01, 0x001) = " << HexCode(manual) << std::endl;
         if (manual == KSON_PARSE_STRE)
             kout << "  == KSON_PARSE_STRE {green}[OK]{/}" << std::endl, ++g_ok;
@@ -172,35 +181,28 @@ int main()
             kout << "  == KSON_PARSE_STRE {red}[FAIL]{/}" << std::endl, ++g_fail;
     }
 
-    // ==================== 4. LogLevel / Module 枚举 ====================
-    SECTION("4. LogLevel / Module 枚举");
+    // ==================== 4. LogLevel 枚举 ====================
+    SECTION("4. LogLevel 枚举");
     {
         kout << "  LogLevel::Info    = " << static_cast<uint32_t>(LogLevel::Info)    << std::endl;
         kout << "  LogLevel::Warning = " << static_cast<uint32_t>(LogLevel::Warning) << std::endl;
         kout << "  LogLevel::Error   = " << static_cast<uint32_t>(LogLevel::Error)   << std::endl;
         kout << "  LogLevel::Fatal   = " << static_cast<uint32_t>(LogLevel::Fatal)   << std::endl;
-        kout << "  Module::Unknown   = " << HexCode(Module::Unknown) << std::endl;
-        kout << "  Module::Common    = " << HexCode(Module::Common)  << std::endl;
-        kout << "  Module::KFIO      = " << HexCode(Module::KFIO)    << std::endl;
-        kout << "  Module::KSON      = " << HexCode(Module::KSON)    << std::endl;
-        kout << "  Module::KTIMER    = " << HexCode(Module::KTIMER)  << std::endl;
-        kout << "  Module::KCLI      = " << HexCode(Module::KCLI)    << std::endl;
-        kout << "  Module::KMATH   = " << HexCode(Module::KMATH) << std::endl;
     }
 
     // ==================== 5. Color 颜色常量展示 ====================
     SECTION("5. Color 颜色常量展示");
     {
-        kout << Color::Red         << "  Red"          << Color::Reset << std::endl;
-        kout << Color::Green       << "  Green"        << Color::Reset << std::endl;
-        kout << Color::Yellow      << "  Yellow"       << Color::Reset << std::endl;
-        kout << Color::Blue        << "  Blue"         << Color::Reset << std::endl;
-        kout << Color::Magenta     << "  Magenta"      << Color::Reset << std::endl;
-        kout << Color::Cyan        << "  Cyan"         << Color::Reset << std::endl;
-        kout << Color::LightYellow << "  LightYellow"  << Color::Reset << std::endl;
-        kout << Color::Orange      << "  Orange"       << Color::Reset << std::endl;
-        kout << Color::SkyBlue     << "  SkyBlue"      << Color::Reset << std::endl;
-        kout << Color::Bold        << "  Bold"         << Color::Reset << std::endl;
+        kout << Red         << "  Red"          << Reset << std::endl;
+        kout << Green       << "  Green"        << Reset << std::endl;
+        kout << Yellow      << "  Yellow"       << Reset << std::endl;
+        kout << Blue        << "  Blue"         << Reset << std::endl;
+        kout << Magenta     << "  Magenta"      << Reset << std::endl;
+        kout << Cyan        << "  Cyan"         << Reset << std::endl;
+        kout << LightYellow << "  LightYellow"  << Reset << std::endl;
+        kout << Orange      << "  Orange"       << Reset << std::endl;
+        kout << SkyBlue     << "  SkyBlue"      << Reset << std::endl;
+        kout << Bold        << "  Bold"         << Reset << std::endl;
     }
 
     // ==================== 结论 ====================

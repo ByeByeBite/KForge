@@ -24,15 +24,18 @@
  *  19.  边界与类型不匹配 (find/at/size 误用 + AsSth 类型不匹配)
  */
 
-#include "base/KF.hpp"
-using namespace KFIO;
-using namespace KSON;
-using namespace KLOG;
-using namespace KCLI;
+import kf;
+import kbignum;
+#include <string>
+#include <cmath>
+#include <iostream>
+#include <vector>
+#include <cstddef>
+#include <exception>
 
 // ==================== 测试辅助宏 ====================
 static int g_ok = 0, g_fail = 0;
-#define SECTION(name) kout << Color::Bold << "\n--- " << name << " ---" << Color::Reset << std::endl
+#define SECTION(name) kout << Bold << "\n--- " << name << " ---" << Reset << std::endl
 #define CHECK(cond, desc) do { \
     if (cond) { kout << "  {green}[PASS]{/} " << desc << std::endl; ++g_ok; } \
     else      { koutE << "  {red}[FAIL]{/} " << desc << std::endl; ++g_fail; } \
@@ -49,7 +52,7 @@ int main()
         KEnd();
         return 1;
     }
-    KBegin(doc);
+    KBegin(doc["meta"].Vec());
 
     // ==================== 1. 字符串解析 ====================
     SECTION("1. 字符串解析");
@@ -401,8 +404,8 @@ int main()
         kson badesc = read(Preprocess("\"x\": \"bad\\xescape\""));
     }
 
-    // ==================== 17. BigNum / 科学计数法 ====================
-    SECTION("17. BigNum / 科学计数法");
+    // ==================== 17. 大数 / 科学计数法 不再支持 ====================
+    SECTION("17. 大数 / 科学计数法 不再支持");
     {
         // config/test/cfg.kson 中 kson_bignum 现为数组，共 10 个元素，按下标访问
         kson bn = doc["kson_bignum"];
@@ -410,78 +413,22 @@ int main()
         CHECK(bnRoot && bnRoot->IsArray(), "kson_bignum 是数组");
         CHECK(bnRoot && bnRoot->size() == 10, "kson_bignum 共 10 个元素");
 
-        // 数组下标必须用 std::size_t，匹配 operator[](std::size_t) 重载
-        std::size_t i0 = 0, i1 = 1, i2 = 2, i3 = 3, i4 = 4;
-        std::size_t i5 = 5, i6 = 6, i7 = 7, i8 = 8, i9 = 9;
-
-        // [0] = 9223372036854775807 (int64_max) → 普通整数
+        // [0] = 9223372036854775807 (int64_max) → 仍是合法整数
         kout << "  >> [0] int64_max (普通整数)" << std::endl;
+        std::size_t i0 = 0;
         const Node* n0 = bn[i0].TryResolve();
         CHECK(n0 && n0->IsInt(), "[0] int64_max 是 Int 类型");
         CHECK(n0->AsInt() == 9223372036854775807LL, "[0] int64_max 值正确");
         SHOW("[0] int64_max", n0->AsInt());
 
-        // [1] = 123456789012345678901234567890 (超出 int64) → 自动 BigNum
-        kout << "  >> [1] overflow_big (自动转 BigNum)" << std::endl;
-        const Node* n1 = bn[i1].TryResolve();
-        CHECK(n1 && n1->IsBig(), "[1] overflow_big 是 BigNum 类型");
-        CHECK(n1->AsBig().ToStr() == "123456789012345678901234567890", "[1] overflow_big 值正确");
-        SHOW("[1] overflow_big", n1->AsBig().ToStr());
-
-        // [2] = -987654321098765432109876543210 (负大数)
-        kout << "  >> [2] negative_big (负大数)" << std::endl;
-        const Node* n2 = bn[i2].TryResolve();
-        CHECK(n2 && n2->IsBig(), "[2] negative_big 是 BigNum 类型");
-        CHECK(n2->AsBig().isneg == true, "[2] negative_big 为负数");
-        SHOW("[2] negative_big", n2->AsBig().ToStr());
-
-        // [3] = -1.23e50 (科学计数法 → BigNum)
-        kout << "  >> [3] sci_big (-1.23e50)" << std::endl;
-        const Node* n3 = bn[i3].TryResolve();
-        CHECK(n3 && n3->IsBig(), "[3] sci_big 是 BigNum 类型");
-        SHOW("[3] sci_big", n3->AsBig().ToStr());
-
-        // [4] = 1.23e-10 (负指数科学计数法 → BigNum)
-        kout << "  >> [4] sci_small (1.23e-10)" << std::endl;
-        const Node* n4 = bn[i4].TryResolve();
-        CHECK(n4 && n4->IsBig(), "[4] sci_small 是 BigNum 类型");
-        SHOW("[4] sci_small", n4->AsBig().ToStr());
-
-        // [5] = -5e20 (负科学计数法 → BigNum)
-        kout << "  >> [5] sci_neg (-5e20)" << std::endl;
-        const Node* n5 = bn[i5].TryResolve();
-        CHECK(n5 && n5->IsBig(), "[5] sci_neg 是 BigNum 类型");
-        SHOW("[5] sci_neg", n5->AsBig().ToStr());
-
-        // [6] = 3e25 (科学计数法 → BigNum)
-        kout << "  >> [6] sci_auto (3e25)" << std::endl;
-        const Node* n6 = bn[i6].TryResolve();
-        CHECK(n6 && n6->IsBig(), "[6] sci_auto 是 BigNum 类型");
-        SHOW("[6] sci_auto", n6->AsBig().ToStr());
-
-        // [7] = 1235648273813688172316313716326731e-10 (大科学计数法 → BigNum)
-        kout << "  >> [7] sci_huge (1235648273813688172316313716326731e-10)" << std::endl;
-        const Node* n7 = bn[i7].TryResolve();
-        CHECK(n7 && n7->IsBig(), "[7] sci_huge 是 BigNum 类型");
-        SHOW("[7] sci_huge", n7->AsBig().ToStr());
-
-        // [8] = 123456782222222222222222222222222222229B ('B' 后缀强制 BigNum)
-        kout << "  >> [8] big_suffix (123456782222222222222222222222222222229B)" << std::endl;
-        const Node* n8 = bn[i8].TryResolve();
-        CHECK(n8 && n8->IsBig(), "[8] big_suffix 是 BigNum 类型");
-        SHOW("[8] big_suffix", n8->AsBig().ToStr());
-
-        // [9] = -987654321B (负 'B' 后缀 → BigNum, 负数)
-        kout << "  >> [9] neg_big_suffix (-987654321B)" << std::endl;
-        const Node* n9 = bn[i9].TryResolve();
-        CHECK(n9 && n9->IsBig(), "[9] neg_big_suffix 是 BigNum 类型");
-        CHECK(n9->AsBig().isneg == true, "[9] neg_big_suffix 为负数");
-        SHOW("[9] neg_big_suffix", n9->AsBig().ToStr());
-
-        // NodePtr::AsBig() 方法 (经 NodePtr 代理，路径解析后取大数)
-        kout << "  >> NodePtr::AsBig() 方法" << std::endl;
-        KMATH::BigDec bigval = bn[i1].Big();
-        SHOW("NodePtr::AsBig()", bigval.ToStr());
+        // [1..9] 大数 / 科学计数法 / B 后缀 → 不再支持，解析为 0（KLOG_ERROR 输出到 stderr）
+        kout << "  >> [1..9] 大数/科学计数法/B后缀 → 被拒绝为 0" << std::endl;
+        for(std::size_t i = 1; i < 10; i++)
+        {
+            const Node* n = bn[i].TryResolve();
+            CHECK(n && n->IsInt() && n->AsInt() == 0,
+                  "[" + std::to_string(i) + "] 大数/科学计数法被拒绝为 0");
+        }
     }
 
     // ==================== 18. 错误用例 (error_cases) ====================
@@ -504,7 +451,7 @@ int main()
                 if (elem && elem->IsString())
                 {
                     std::string raw = std::string(elem->AsStr());
-                    std::string normalized = KMATH::Normalize(raw);
+                    std::string normalized = Normalize(raw);
                     kout << "    [" << i << "] raw=\"" << raw
                          << "\" → normalized=\"" << normalized << "\"" << std::endl;
                 }
@@ -587,7 +534,6 @@ int main()
         if (strNode) TYPE_MISMATCH(strNode->AsInt(),  "AsInt()  on string");
         if (intNode) TYPE_MISMATCH(intNode->AsStr(),  "AsStr()  on int");
         if (intNode) TYPE_MISMATCH(intNode->AsBool(), "AsBool() on int");
-        if (intNode) TYPE_MISMATCH(intNode->AsBig(),  "AsBig()  on int");
         if (intNode) TYPE_MISMATCH(intNode->AsArr(),  "AsArr()  on int");
         if (intNode) TYPE_MISMATCH(intNode->AsObj(),  "AsObj()  on int");
         if (strNode) TYPE_MISMATCH(strNode->AsDec(),  "AsDec()  on string");
@@ -604,31 +550,31 @@ int main()
         kson inf_nan = doc["inf_nan"];
         CHECK(inf_nan.Exists(), "inf_nan 节点存在");
 
-        // 关键字 inf / -inf / nan
+        // 关键字 inf / -inf / nan（存储为 double 特殊值）
         kout << "  >> 关键字 inf / -inf / nan" << std::endl;
-        KMATH::BigDec inf = inf_nan["inf"].Big();
-        KMATH::BigDec neg_inf = inf_nan["neg_inf"].Big();
-        KMATH::BigDec nan = inf_nan["nan"].Big();
-        CHECK(inf.IsInf() && !inf.isneg, "inf 关键字 → IsInf && !isneg");
-        CHECK(neg_inf.IsInf() && neg_inf.isneg, "-inf 关键字 → IsInf && isneg");
-        CHECK(nan.IsNan(), "nan 关键字 → IsNan");
+        double inf = inf_nan["inf"].Dec();
+        double neg_inf = inf_nan["neg_inf"].Dec();
+        double nan = inf_nan["nan"].Dec();
+        CHECK(std::isinf(inf) && inf > 0, "inf 关键字 → isinf && 正");
+        CHECK(std::isinf(neg_inf) && neg_inf < 0, "-inf 关键字 → isinf && 负");
+        CHECK(std::isnan(nan), "nan 关键字 → isnan");
 
-        // 引号字符串 "inf" / "NaN"（大小写不敏感，自动转为 BigNum 特殊状态）
+        // 引号字符串 "inf" / "NaN"（大小写不敏感，转为 double 特殊值）
         kout << "  >> 引号字符串 \"inf\" / \"NaN\"" << std::endl;
-        KMATH::BigDec str_inf = inf_nan["str_inf"].Big();
-        KMATH::BigDec str_nan = inf_nan["str_nan"].Big();
-        CHECK(str_inf.IsInf() && !str_inf.isneg, "字符串 \"inf\" → IsInf");
-        CHECK(str_nan.IsNan(), "字符串 \"NaN\" → IsNan");
+        double str_inf = inf_nan["str_inf"].Dec();
+        double str_nan = inf_nan["str_nan"].Dec();
+        CHECK(std::isinf(str_inf) && str_inf > 0, "字符串 \"inf\" → isinf");
+        CHECK(std::isnan(str_nan), "字符串 \"NaN\" → isnan");
 
         // 数组中的 inf/nan
         kout << "  >> 数组中的 inf / -inf / nan" << std::endl;
         kson arr = inf_nan["array"];
         CHECK(arr.Exists() && arr.Size() == 5, "inf_nan.array 大小 = 5");
-        CHECK(arr[static_cast<size_t>(0)].Big().IsInf() && !arr[static_cast<size_t>(0)].Big().isneg,  "array[0] = inf");
-        CHECK(arr[static_cast<size_t>(1)].Big().IsInf() && arr[static_cast<size_t>(1)].Big().isneg,   "array[1] = -inf");
-        CHECK(arr[static_cast<size_t>(2)].Big().IsNan(),                          "array[2] = nan");
-        CHECK(arr[static_cast<size_t>(3)].Big().IsInf() && !arr[static_cast<size_t>(3)].Big().isneg,  "array[3] = \"INF\"");
-        CHECK(arr[static_cast<size_t>(4)].Big().IsNan(),                          "array[4] = \"nan\"");
+        CHECK(std::isinf(arr[static_cast<size_t>(0)].Dec()) && arr[static_cast<size_t>(0)].Dec() > 0,  "array[0] = inf");
+        CHECK(std::isinf(arr[static_cast<size_t>(1)].Dec()) && arr[static_cast<size_t>(1)].Dec() < 0,  "array[1] = -inf");
+        CHECK(std::isnan(arr[static_cast<size_t>(2)].Dec()),                          "array[2] = nan");
+        CHECK(std::isinf(arr[static_cast<size_t>(3)].Dec()) && arr[static_cast<size_t>(3)].Dec() > 0,  "array[3] = \"INF\"");
+        CHECK(std::isnan(arr[static_cast<size_t>(4)].Dec()),                          "array[4] = \"nan\"");
 
         // Auto() 可打印特殊状态
         kout << "  >> Auto() 输出" << std::endl;

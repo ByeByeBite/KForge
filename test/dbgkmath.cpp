@@ -1,9 +1,8 @@
-#include "base/KF.hpp"
+import kf;
+import kbignum;
 #include <sstream>
-using namespace KMATH;
-using namespace KCLI;
-using namespace KSON;
-using namespace KTIMER;
+#include <string>
+#include <cstddef>
 
 /// =====================================================================
 /// 配置驱动型 BigDec 测试框架
@@ -96,7 +95,7 @@ int main()
 {
     auto doc = ReadKsonFile("config/test/cfg.kson");
     auto file = doc["dbgKMATH"];
-    KBegin(file);
+    KBegin(file["meta"].Vec());
     auto bn = file["bignum"];
 
     if(!bn.Exists())
@@ -454,7 +453,6 @@ int main()
         CHECK_CFG_STR(BigCpx(1, 2).ToStr(), "BigCpx(1,2)", "1+2i", "nested", 5);
         CHECK_CFG_STR(BigCpx(1, 2).Conj().ToStr(), "conj(BigCpx(1,2))", "1-2i", "nested", 6);
     }
-
     // ==================== 结论 ====================
     kout << "\n----------------------------------------\n";
     kout << "  {green}[OK]{/} " << g_ok << " 项通过\n";

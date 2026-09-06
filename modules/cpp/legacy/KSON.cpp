@@ -1,5 +1,5 @@
 
-#include "base/KF.hpp"
+#include "modules/cpp/KF.hpp"
 
 /**
  * @file KSON.cpp
@@ -42,10 +42,6 @@ namespace KF
         Node::Node(bool val) noexcept : Data(val) {}        // 从 bool 构造，类型为 kBool
         Node::Node(long long val) noexcept : Data(val) {}   // 从 long long 构造，类型为 kInt
         Node::Node(double val) noexcept : Data(val) {}      // 从 double 构造，类型为 kDec
-        Node::Node(KMATH::BigDec val) noexcept : Data(std::move(val)) {}  // 从 BigDec 构造，类型为 kBig
-        Node::Node(KMATH::BigInt val) noexcept : Data(KMATH::BigDec(val)) {}   // 从 BigInt 构造，转 BigDec 存储
-        Node::Node(KMATH::BigFrc<> val) noexcept : Data(val.ToBigDec()) {}       // 从 BigFrc 构造，转 BigDec 存储
-        Node::Node(KMATH::BigCpx<> val) noexcept : Data(val.re) {}               // 从 BigCpx 构造，取实部转 BigDec 存储
         Node::Node(std::string val) noexcept : Data(std::move(val)) {}  // 从 string 构造，类型为 kStr
         Node::Node(std::vector<Node> val) : Data(std::move(val)) {}     // 从数组构造，类型为 kArr
         Node::Node(std::vector<std::pair<std::string, Node>> val) : Data(std::move(val)) {}  // 从对象构造，类型为 kObj
@@ -61,7 +57,6 @@ namespace KF
                 else if constexpr (std::is_same_v<T, bool>) return NodeType::kBool;
                 else if constexpr (std::is_same_v<T, long long>) return NodeType::kInt;
                 else if constexpr (std::is_same_v<T, double>) return NodeType::kDec;
-                else if constexpr (std::is_same_v<T, KMATH::BigDec>) return NodeType::kBig;
                 else if constexpr (std::is_same_v<T, std::string>) return NodeType::kStr;
                 else if constexpr (std::is_same_v<T, arr_t>) return NodeType::kArr;
                 else return NodeType::kObj;
@@ -75,10 +70,8 @@ namespace KF
         bool Node::IsInt()     const noexcept { return type() == NodeType::kInt; }
         /// @brief 判断是否为浮点数
         bool Node::IsDec()     const noexcept { return type() == NodeType::kDec; }
-        /// @brief 判断是否为大数
-        bool Node::IsBig()     const noexcept { return type() == NodeType::kBig; }
-        /// @brief 判断是否为数字（整数、浮点数或大数）
-        bool Node::IsNumber()  const noexcept { return IsInt() || IsDec() || IsBig(); }
+        /// @brief 判断是否为数字（整数或浮点数）
+        bool Node::IsNumber()  const noexcept { return IsInt() || IsDec(); }
         /// @brief 判断是否为字符串
         bool Node::IsString()  const noexcept { return type() == NodeType::kStr; }
         /// @brief 判断是否为数组
@@ -102,11 +95,6 @@ namespace KF
             if (IsInt()) return static_cast<double>(AsInt());  // 整数可隐式转为浮点
             if (!IsDec()) KLOG_ERROR(KSON_TYPE_MISMATCH, "Node is not decimal");
             return std::get<double>(Data);
-        }
-        /// @brief 取大数引用
-        const KMATH::BigDec& Node::AsBig() const {
-            if (!IsBig()) KLOG_ERROR(KSON_TYPE_MISMATCH, "Node is not big number");
-            return std::get<KMATH::BigDec>(Data);
         }
         /// @brief 取字符串
         std::string_view Node::AsStr() const {
@@ -249,7 +237,7 @@ namespace KF
                     if(res.size() == 1) //如果数字为空
                         res="0";
 
-                    // 科学计数法 → 展开为完整十进制字符串 → BigNum
+                    // 大数/科学计数法/B 后缀均不支持，报错并返回 0
                     switch (type)
                     {
                         case 0: //整数
@@ -266,8 +254,9 @@ namespace KF
                             }
                             if(!fitsInt64)
                             {
-                                // 超出 int64_t 范围 → 自动切换为 BigDec
-                                return Node(KMATH::BigDec::ToBig(res));
+                                // 超出 int64_t 范围 → 不支持大数，报错并返回 0
+                                KLOG_ERROR(KSON_PARSE_NUMOR, res + " | integer overflow (big numbers not supported)");
+                                return Node(0LL);
                             }
                             // stoll 在数字非法/溢出时会抛 invalid_argument / out_of_range，必须捕获
                             try { return Node(std::stoll(res)); }
@@ -286,70 +275,16 @@ namespace KF
                                 return Node(0.0);
                             }
                         }
-                        case 2: //科学计数法
+                        case 2: //科学计数法 → 不支持，报错并返回 0
                         {
-                            // res 形如 "+1.23e5" 或 "-1.23e-5"
-                            size_t ePos = res.find(CHAR_SCI_LOW); //找不到小写e就找大写E
-                            if(ePos == std::string::npos) ePos = res.find(CHAR_SCI_UP);
-                            std::string mantissa = res.substr(0, ePos);
-                            std::string expStr   = res.substr(ePos + 1);
-
-                            // 解析指数
-                            long long exponent = 0;
-                            try { exponent = std::stoll(expStr); }
-                            catch(const std::exception&) { KLOG_ERROR(KSON_PARSE_NUMOR, "bad exponent: " + expStr); }
-
-                            // 提取纯数字串（移除符号和小数点）
-                            bool mantNeg = (mantissa[0] == '-');
-                            size_t dotPos = mantissa.find('.');
-                            std::string mantDigits;
-                            for(size_t i = 1; i < mantissa.size(); i++)
-                                if(mantissa[i] != '.') mantDigits += mantissa[i];
-
-                            // 计算小数点后的位数（如果 mantissa 有小数点）
-                            size_t decDigits = (dotPos == std::string::npos) ? 0
-                                            : (mantissa.size() - dotPos - 1);
-
-                            // 计算完整字符串
-                            std::string fullStr;
-                            if(exponent >= 0)
-                            {
-                                // 小数点右移
-                                if((size_t)exponent >= decDigits)
-                                    fullStr = mantDigits + std::string((size_t)exponent - decDigits, '0');
-                                else
-                                {
-                                    size_t insPos = mantDigits.size() - (decDigits - (size_t)exponent);
-                                    fullStr = mantDigits.substr(0, insPos) + "." + mantDigits.substr(insPos);
-                                }
-                            }
-                            else
-                            {
-                                // 小数点左移（负指数）
-                                size_t intDigits = (dotPos != std::string::npos && dotPos > 1) ? dotPos - 1 : mantDigits.size();
-                                size_t totalShift = (size_t)(-exponent);
-                                if(totalShift <= intDigits)
-                                {
-                                    size_t insPos = intDigits - totalShift;
-                                    if(insPos == 0)
-                                        fullStr = "0." + mantDigits;
-                                    else
-                                        fullStr = mantDigits.substr(0, insPos) + "." + mantDigits.substr(insPos);
-                                }
-                                else
-                                {
-                                    fullStr = "0." + std::string(totalShift - intDigits, '0') + mantDigits;
-                                }
-                            }
-
-                            if(mantNeg) fullStr = "-" + fullStr;
-                            else        fullStr = "+" + fullStr;
-
-                            // 用 Normalize 清理 + ToBig 转换
-                            return Node(KMATH::BigDec::ToBig(KMATH::Normalize(fullStr)));
+                            KLOG_ERROR(KSON_PARSE_NUMOR, res + " | scientific notation not supported");
+                            return Node(0LL);
                         }
-                        case 3: //大数（'B'后缀强制）
-                            return Node(KMATH::BigDec::ToBig(res));
+                        case 3: //大数（'B'后缀强制）→ 不支持，报错并返回 0
+                        {
+                            KLOG_ERROR(KSON_PARSE_NUMOR, res + " | big number suffix 'B' not supported");
+                            return Node(0LL);
+                        }
                         default: //暂不支持的数字类型
                             KLOG_ERROR(KSON_PARSE_NUM_USTYPE,"");
                             try { return Node(std::stoll(res)); }
@@ -460,10 +395,12 @@ namespace KF
                     case CHAR_QUOTE1:
                     {
                         std::string s = ParseStr();
-                        // 引号字符串 inf/-inf/nan（大小写不敏感）→ 自动转为 BigDec 特殊状态
-                        KMATH::BigDec sp(s);
-                        if(sp.state != KMATH::BigDec::State::Normal)
-                            return Node(sp);
+                        // 引号字符串 inf/-inf/nan（大小写不敏感）→ 转为 double 特殊值
+                        std::string ls = s;
+                        for(auto& ch : ls) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+                        if(ls == "inf")  return Node(std::numeric_limits<double>::infinity());
+                        if(ls == "-inf") return Node(-std::numeric_limits<double>::infinity());
+                        if(ls == "nan")  return Node(std::numeric_limits<double>::quiet_NaN());
                         return Node(std::move(s));
                     }
                     case OBJ_BEGIN:
@@ -473,7 +410,7 @@ namespace KF
                     case 'i':
                     case 'I': // inf → 正无穷
                         if(MatchKw("inf"))
-                            return Node(KMATH::BigDec(KMATH::BigDec::State::Inf));
+                            return Node(std::numeric_limits<double>::infinity());
                         KLOG_ERROR(KSON_PARSE_VAL_ERROR,"INF");
                         return Node(0LL);
                     case 't': //如果是Bool True
@@ -495,7 +432,7 @@ namespace KF
                     case 'n':
                     case 'N': // nan → 非数；否则按 null 处理
                         if(MatchKw("nan"))
-                            return Node(KMATH::BigDec(KMATH::BigDec::State::Nan));
+                            return Node(std::numeric_limits<double>::quiet_NaN());
                         if(MatchKw("null"))
                             return Node();
                         KLOG_ERROR(KSON_PARSE_VAL_ERROR,"NULL");
@@ -503,7 +440,7 @@ namespace KF
                     default:
                         // -inf → 负无穷
                         if(c == CHAR_NEG && MatchKw("-inf"))
-                            return Node(KMATH::BigDec(KMATH::BigDec::State::NegInf));
+                            return Node(-std::numeric_limits<double>::infinity());
                         // 数字（含正负号、小数点开头）交给 ParseNum 处理
                         if (std::isdigit(static_cast<unsigned char>(c)) || c == CHAR_NEG || c == CHAR_POS)
                             return ParseNum();
@@ -725,7 +662,6 @@ namespace KF
         std::string NodePtr::Str()  const { return std::string(Resolve()->AsStr()); }
         long long   NodePtr::Int()  const { return Resolve()->AsInt(); }
         double      NodePtr::Dec()  const { return Resolve()->AsDec(); }
-        KMATH::BigDec NodePtr::Big() const { return Resolve()->AsBig(); }
         bool        NodePtr::Bool() const { return Resolve()->AsBool(); }
         std::size_t NodePtr::Size() const { return Resolve()->size(); }
         bool        NodePtr::Exists() const { return TryResolve() != nullptr; }
@@ -747,14 +683,16 @@ namespace KF
                     return n->AsBool() ? "true" : "false";
                 case NodeType::kInt:
                     return std::to_string(n->AsInt());
-                case NodeType::kBig:
-                    return n->AsBig().ToStr();
                 case NodeType::kDec:
                 {
+                    double d = n->AsDec();
+                    // inf/-inf/nan 特殊值 → 固定文本
+                    if (std::isinf(d)) return d < 0 ? "-inf" : "inf";
+                    if (std::isnan(d)) return "nan";
                     // 用 ostringstream + setprecision(15) 保留完整精度，
                     // 再去掉尾部的多余零，避免 std::to_string 只显示 6 位小数
                     std::ostringstream oss;
-                    oss << std::setprecision(15) << n->AsDec();
+                    oss << std::setprecision(15) << d;
                     std::string s = oss.str();
                     // 去掉小数点后多余的尾零：如 1.114500 → 1.1145
                     if (s.find('.') != std::string::npos)
@@ -878,6 +816,7 @@ namespace KF
         }
         kson ReadKsonFile(std::string_view filename)
         {
+            EnableVT100();
             return read(KSON::Preprocess(KFIO::ReadFileRaw(filename)));
         }
     }

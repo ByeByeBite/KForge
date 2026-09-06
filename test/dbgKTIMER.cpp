@@ -8,17 +8,12 @@
  * 若配置键缺失则输出 {red}[FAIL]{/} 并继续，不会退出程序。
  */
 
-#include "base/KF.hpp"
+import kf;
 #include <thread>
 #include <chrono>
-using namespace KFIO;
-using namespace KSON;
-using namespace KLOG;
-using namespace KCLI;
-using namespace KTIMER;
 
 // ==================== 测试辅助 ====================
-#define SECTION(name) kout << Color::Bold << "\n--- " << name << " ---" << Color::Reset << std::endl
+#define SECTION(name) kout << Bold << "\n--- " << name << " ---" << Reset << std::endl
 
 static int g_ok = 0, g_fail = 0;
 
@@ -114,7 +109,7 @@ int main()
 {
     auto doc = ReadKsonFile("config/test/cfg.kson");
     auto timer = doc["dbgKTIMER"];
-    KBegin(timer);
+    KBegin(timer.Vec());
 
     SECTION("plan 计时器操作脚本");
     if (!timer["plan"].Exists())
